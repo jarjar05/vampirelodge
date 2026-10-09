@@ -1,0 +1,18 @@
+# dependencies
+node_modules/
+.venv/
+
+# build output and caches
+dist/
+*.tsbuildinfo
+__pycache__/
+
+# local settings and secrets
+.env
+.env.local
+
+# local database files
+backend/data/
+
+# macOS
+.DS_Store
