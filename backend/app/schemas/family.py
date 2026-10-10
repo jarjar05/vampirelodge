@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -25,12 +26,23 @@ class FamilyJoinRequest(BaseModel):
         return invite_code.strip().upper()
 
 
+class FamilyUpdateRequest(FamilyCreateRequest):
+    pass
+
+
 class FamilyResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
     name: str
     created_at: datetime
+
+
+class MyFamilyResponse(FamilyResponse):
+    """The caller's family, with their role. The invite code is shown to admins only."""
+
+    my_role: str
+    invite_code: str | None
 
 
 class FamilyCreatedResponse(FamilyResponse):
@@ -43,9 +55,27 @@ class FamilyJoinResponse(BaseModel):
     joined_at: datetime
 
 
+Availability = Literal["Available", "With family", "Away today", "On duty"]
+
+
+class FamilyMemberUpdateRequest(BaseModel):
+    relationship_label: str | None = Field(default=None, max_length=80)
+    availability: Availability | None = None
+    availability_note: str | None = Field(default=None, max_length=200)
+
+    @field_validator("relationship_label", "availability_note")
+    @classmethod
+    def blank_to_none(cls, value: str | None) -> str | None:
+        return (value or "").strip() or None
+
+
 class FamilyMemberResponse(BaseModel):
     id: uuid.UUID
     name: str
     email: str
+    avatar_url: str | None
     role: str
+    relationship_label: str | None
+    availability: str
+    availability_note: str | None
     joined_at: datetime

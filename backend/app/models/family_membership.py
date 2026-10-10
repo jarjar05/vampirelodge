@@ -1,10 +1,10 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String, Uuid, UniqueConstraint, func
+from sqlalchemy import CheckConstraint, ForeignKey, String, Uuid, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.database import Base
+from app.database import Base, UTCDateTime
 
 
 class FamilyMembership(Base):
@@ -19,4 +19,7 @@ class FamilyMembership(Base):
     family_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("families.id", ondelete="CASCADE"), nullable=False, index=True)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     role: Mapped[str] = mapped_column(String(16), nullable=False, default="MEMBER")
-    joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    relationship_label: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    availability: Mapped[str] = mapped_column(String(16), nullable=False, default="Available", server_default="Available")
+    availability_note: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    joined_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False, server_default=func.now())

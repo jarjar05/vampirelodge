@@ -1,4 +1,4 @@
-"""Provision a user from the terminal; public sign-up is intentionally disabled."""
+"""Provision a user from the terminal, as an alternative to signing up in the app."""
 
 from getpass import getpass
 
@@ -6,6 +6,7 @@ from sqlalchemy import select
 
 from app.database import SessionLocal
 from app.models import User
+from app.schemas.auth import MIN_PASSWORD_LENGTH
 from app.utils.passwords import hash_password
 
 
@@ -19,8 +20,8 @@ def main() -> None:
         raise SystemExit("Email and name are required.")
     if password != confirmation:
         raise SystemExit("Passwords do not match.")
-    if len(password) < 12:
-        raise SystemExit("Use a password with at least 12 characters.")
+    if len(password) < MIN_PASSWORD_LENGTH:
+        raise SystemExit(f"Use a password with at least {MIN_PASSWORD_LENGTH} characters.")
 
     with SessionLocal.begin() as database:
         if database.scalar(select(User.id).where(User.email == email)) is not None:

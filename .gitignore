@@ -7,9 +7,9 @@ dist/
 *.tsbuildinfo
 __pycache__/
 
-# local settings and secrets
-.env
-.env.local
+# local settings and secrets (any .env file except the placeholder template)
+.env*
+!.env.example
 
 # local database files
 backend/data/

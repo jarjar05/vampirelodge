@@ -2,7 +2,7 @@ import hashlib
 import secrets
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -34,6 +34,15 @@ def get_user_for_session(database: Session, token: str | None) -> User | None:
     if user_session is None:
         return None
     return database.get(User, user_session.user_id)
+
+
+def revoke_other_sessions(database: Session, user: User, current_token: str | None) -> None:
+    """Sign the user out everywhere except the session making this request. Does not commit."""
+    statement = delete(UserSession).where(UserSession.user_id == user.id)
+    if current_token:
+        current_digest = hashlib.sha256(current_token.encode("utf-8")).hexdigest()
+        statement = statement.where(UserSession.token_hash != current_digest)
+    database.execute(statement)
 
 
 def revoke_session(database: Session, token: str | None) -> None:

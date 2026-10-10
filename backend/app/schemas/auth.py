@@ -1,20 +1,115 @@
+import re
 import uuid
 from datetime import datetime
+from typing import Self
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+MIN_PASSWORD_LENGTH = 12
+MAX_AVATAR_URL_LENGTH = 300_000
+_EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+# International format: a plus sign, country code, then the number; 7 to 15 digits in total.
+_PHONE_PATTERN = re.compile(r"^\+[1-9][0-9]{6,14}$")
+_PHONE_SEPARATORS = re.compile(r"[\s().-]")
+_AVATAR_PATTERN = re.compile(r"^data:image/(jpeg|png|webp);base64,[A-Za-z0-9+/]+=*$")
+
+
+def normalize_email(email: str) -> str:
+    normalized_email = email.strip().lower()
+    if not _EMAIL_PATTERN.fullmatch(normalized_email):
+        raise ValueError("Enter a valid email address")
+    return normalized_email
+
+
+def normalize_phone(phone: str) -> str:
+    """Strip spacing and punctuation so "+65 9123-4567" and "+6591234567" are the same number."""
+    normalized_phone = _PHONE_SEPARATORS.sub("", phone)
+    if not _PHONE_PATTERN.fullmatch(normalized_phone):
+        raise ValueError("Enter the phone number with its country code, for example +65 9123 4567")
+    return normalized_phone
+
+
+def _normalize_name(name: str) -> str:
+    value = name.strip()
+    if not value:
+        raise ValueError("Name must not be empty")
+    return value
 
 
 class LoginRequest(BaseModel):
-    email: str = Field(min_length=3, max_length=320)
+    """Sign in with either the account's email or its phone number."""
+
+    email: str | None = Field(default=None, max_length=320)
+    phone: str | None = Field(default=None, max_length=32)
     password: str = Field(min_length=1, max_length=1024)
+
+    @model_validator(mode="after")
+    def exactly_one_identifier(self) -> Self:
+        if (self.email is None) == (self.phone is None):
+            raise ValueError("Sign in with either an email or a phone number")
+        # Sign-in is lenient: a malformed identifier simply matches no account.
+        if self.email is not None:
+            self.email = self.email.strip().lower()
+        if self.phone is not None:
+            self.phone = _PHONE_SEPARATORS.sub("", self.phone)
+        return self
+
+
+class RegisterRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=150)
+    email: str = Field(min_length=3, max_length=320)
+    phone: str | None = Field(default=None, max_length=32)
+    password: str = Field(min_length=MIN_PASSWORD_LENGTH, max_length=1024)
+
+    _name = field_validator("name")(_normalize_name)
+    _email = field_validator("email")(normalize_email)
+
+    @field_validator("phone")
+    @classmethod
+    def check_phone(cls, phone: str | None) -> str | None:
+        return normalize_phone(phone) if phone and phone.strip() else None
+
+
+class ProfileUpdateRequest(BaseModel):
+    """Fields left out are unchanged. Send `avatar_url: null` to remove the picture."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=150)
+    avatar_url: str | None = Field(default=None, max_length=MAX_AVATAR_URL_LENGTH)
+
+    @field_validator("name")
+    @classmethod
+    def check_name(cls, name: str | None) -> str | None:
+        return None if name is None else _normalize_name(name)
+
+    @field_validator("avatar_url")
+    @classmethod
+    def check_avatar(cls, avatar_url: str | None) -> str | None:
+        if avatar_url is not None and not _AVATAR_PATTERN.fullmatch(avatar_url):
+            raise ValueError("Profile picture must be a JPEG, PNG, or WebP image")
+        return avatar_url
+
+
+class SignInDetailsUpdateRequest(BaseModel):
+    """Change the email or phone used to sign in. Fields left out are unchanged; `phone: null` removes it."""
+
+    current_password: str = Field(min_length=1, max_length=1024)
+    email: str | None = Field(default=None, max_length=320)
+    phone: str | None = Field(default=None, max_length=32)
 
     @field_validator("email")
     @classmethod
-    def normalize_email(cls, email: str) -> str:
-        normalized_email = email.strip().lower()
-        if not normalized_email:
-            raise ValueError("Email must not be empty")
-        return normalized_email
+    def check_email(cls, email: str | None) -> str | None:
+        return None if email is None else normalize_email(email)
+
+    @field_validator("phone")
+    @classmethod
+    def check_phone(cls, phone: str | None) -> str | None:
+        return normalize_phone(phone) if phone and phone.strip() else None
+
+
+class PasswordChangeRequest(BaseModel):
+    current_password: str = Field(min_length=1, max_length=1024)
+    new_password: str = Field(min_length=MIN_PASSWORD_LENGTH, max_length=1024)
 
 
 class AuthUserResponse(BaseModel):
@@ -22,5 +117,7 @@ class AuthUserResponse(BaseModel):
 
     id: uuid.UUID
     email: str
+    phone: str | None
     name: str
+    avatar_url: str | None
     created_at: datetime
