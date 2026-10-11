@@ -71,7 +71,7 @@ export function FamilySetup({
         </Card>
 
         <p className="mt-5 text-center text-xs text-muted-foreground">
-          Not you? <button type="button" onClick={onSignOut} className="font-semibold text-primary hover:underline">Sign out</button>
+          Not you? <button type="button" onClick={onSignOut} className="font-semibold text-primary link-underline">Sign out</button>
         </p>
       </div>
     </main>

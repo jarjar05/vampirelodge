@@ -39,7 +39,8 @@ Answer with:
 today and mention anything overdue.
 - steps: every task exactly once, in the suggested order. Each note is at most 12 words and says why the task \
 sits at that point (for example the deadline, or that it shares a trip with another task).
-Never mention ids. All times you are given are in the person's local time."""
+Never mention ids. All times you are given are in the person's local time. Write times the 12-hour way, \
+such as "6:30 PM", never "18:30"."""
 
 
 @dataclass(frozen=True)
@@ -62,6 +63,10 @@ _cache: dict[uuid.UUID, tuple[str, DayPlan]] = {}
 
 def clear_cache() -> None:
     _cache.clear()
+
+
+def forget(user_id: uuid.UUID) -> None:
+    _cache.pop(user_id, None)
 
 
 def resolve_timezone(name: str | None) -> ZoneInfo:

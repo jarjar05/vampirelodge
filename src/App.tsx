@@ -9,13 +9,17 @@ import {
   ChevronDown,
   ClipboardList,
   Clock3,
+  FileText,
   HeartPulse,
   Home,
   MapPin,
   Plus,
+  Repeat,
   RotateCcw,
+  Settings,
   SlidersHorizontal,
   Stethoscope,
+  Trash2,
   UserRound,
   UsersRound,
   X,
@@ -28,10 +32,14 @@ import { DatePicker, TimePicker } from "@/components/ui/date-time-picker";
 import { LoginPage, type AuthUser } from "@/components/auth/login-page";
 import { FamilySetup } from "@/components/family/family-setup";
 import { FamilyAvatar } from "@/components/family-avatar";
+import { FamilyStats } from "@/components/family-stats";
 import { FamilyAssignmentSuggestion } from "@/components/family-assignment-suggestion";
 import { DayPlanCard } from "@/components/day-plan-card";
+import { CountUp } from "@/components/count-up";
+import { DocumentImport } from "@/components/document-import";
 import { NotificationsMenu, ProfileMenu } from "@/components/header-menus";
 import { ProfileSettingsDialog } from "@/components/profile-settings-dialog";
+import { SidebarNav } from "@/components/sidebar-nav";
 import { useCareData, type CareData } from "@/hooks/use-care-data";
 import { useReveal } from "@/hooks/use-reveal";
 import { formatLongDate, getLocalDateInputValue, localInputsToIso, partOfDay } from "@/lib/dates";
@@ -40,9 +48,13 @@ import { KnowledgePage } from "@/pages/knowledge-page";
 import { mockTaskRiskAssessment, taskRiskTagStyles, type TaskRiskAssessment } from "@/lib/task-risk";
 import {
   availabilityOptions,
+  recurrenceOptions,
+  recurrencePhrases,
   type Availability,
   type CareAppointment,
   type CareTask,
+  type TaskDraft,
+  type TaskRecurrence,
   type Family,
   type FamilyActivityItem,
   type FamilyMember,
@@ -155,7 +167,7 @@ function CareApp({ currentUser, onUserUpdated, onSignOut }: { currentUser: AuthU
 
   return (
     <div className="app-backdrop min-h-screen text-foreground">
-      <aside className="sidebar fixed inset-y-0 left-0 z-10 hidden w-64 flex-col border-r border-border/70 px-5 py-7 md:flex">
+      <aside className="sidebar app-enter-side fixed inset-y-0 left-0 z-10 hidden w-64 flex-col border-r border-border/70 px-5 py-7 md:flex">
         <Link to="/" aria-label={`${familyName} home`} className="flex min-w-0 items-center gap-3 px-2">
           <span className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-md shadow-primary/20">
             <HeartPulse size={21} aria-hidden="true" />
@@ -166,37 +178,23 @@ function CareApp({ currentUser, onUserUpdated, onSignOut }: { currentUser: AuthU
         <div className="mt-8 px-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
           Care space
         </div>
-        <nav aria-label="Main navigation" className="mt-3 space-y-1.5">
-          {navigation.map(({ to, label, icon: Icon, end }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={end}
-              className={({ isActive }) =>
-                `flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-colors ${
-                  isActive
-                    ? "bg-primary font-semibold text-primary-foreground shadow-md shadow-primary/25"
-                    : "text-muted-foreground hover:bg-muted/80 hover:text-foreground"
-                }`
-              }
-            >
-              <Icon size={18} aria-hidden="true" />
-              {label}
-            </NavLink>
-          ))}
-        </nav>
+        <SidebarNav items={navigation} />
 
-        <div className="mt-auto flex items-center gap-3 border-t border-border px-2 pt-5">
-          {renderMyAvatar()}
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold">{currentUser.name}</p>
-            <p className="text-xs text-muted-foreground">{me?.role ?? "Family member"}</p>
-          </div>
+        <div className="mt-auto border-t border-border pt-3">
+          {/* Opens profile settings, the same as the picture in the top bar. */}
+          <button type="button" onClick={() => setIsProfileOpen(true)} aria-label={`Profile settings for ${currentUser.name}`} className="profile-chip flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <span className="profile-chip-avatar flex shrink-0">{renderMyAvatar()}</span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-semibold">{currentUser.name}</span>
+              <span className="block text-xs text-muted-foreground">{me?.role ?? "Family member"}</span>
+            </span>
+            <Settings size={16} aria-hidden="true" className="profile-chip-cog shrink-0 text-muted-foreground" />
+          </button>
         </div>
       </aside>
 
       <div className="md:pl-64">
-        <header className="relative z-20 flex h-[72px] items-center justify-between border-b border-border/60 bg-white/55 px-5 shadow-sm shadow-foreground/[0.02] backdrop-blur-md md:justify-end md:px-8">
+        <header className="app-enter-top relative z-20 flex h-[72px] items-center justify-between border-b border-border/60 bg-white/55 px-5 shadow-sm shadow-foreground/[0.02] backdrop-blur-md md:justify-end md:px-8">
           <div className="flex min-w-0 items-center gap-2 md:hidden">
             <HeartPulse size={20} className="text-primary" aria-hidden="true" />
             <div className="min-w-0">
@@ -214,11 +212,11 @@ function CareApp({ currentUser, onUserUpdated, onSignOut }: { currentUser: AuthU
             />
           </div>
         </header>
-        <main className="custom-scrollbar mx-auto h-[calc(100vh-72px)] max-w-7xl overflow-y-auto px-5 py-6 pb-24 md:px-8 md:py-8">
+        <main className="app-enter-main custom-scrollbar mx-auto h-[calc(100vh-72px)] max-w-7xl overflow-y-auto px-5 py-6 pb-24 md:px-8 md:py-8">
           {care.actionError && (
             <div role="alert" className="mb-5 flex items-start justify-between gap-3 rounded-lg bg-alert/10 px-4 py-3 text-sm text-alert">
               <span>{care.actionError}</span>
-              <button type="button" onClick={care.clearActionError} className="shrink-0 font-semibold hover:underline">Dismiss</button>
+              <button type="button" onClick={care.clearActionError} className="shrink-0 font-semibold link-underline">Dismiss</button>
             </div>
           )}
           <Routes>
@@ -306,17 +304,15 @@ function OverviewPage({ care, currentUser }: { care: CareData; currentUser: Auth
 
       <div className="mt-6 grid items-start gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.75fr)]">
         <div className="space-y-6">
-          {myTasks.length > 0 && <DayPlanCard tasks={myTasks} />}
-          <OverviewCard title="My tasks" to="/tasks" linkLabel="All tasks">
-            <div className="divide-y divide-border">
-              {myTasks.slice(0, overviewListLimit).map((task) => <TaskRow key={task.id} task={task} />)}
-            </div>
-            {myTasks.length === 0 && <EmptyNote>Nothing is assigned to you.</EmptyNote>}
-            {myTasks.length > overviewListLimit && <p className="pt-3 text-xs text-muted-foreground">+{myTasks.length - overviewListLimit} more</p>}
-          </OverviewCard>
+          {/* The plan lists my tasks in its suggested order, so a separate list is only needed when I have none. */}
+          {myTasks.length > 0 ? <DayPlanCard tasks={myTasks} /> : (
+            <OverviewCard title="My tasks" to="/tasks" linkLabel="All tasks">
+              <EmptyNote>Nothing is assigned to you.</EmptyNote>
+            </OverviewCard>
+          )}
 
           <OverviewCard title="Upcoming" to="/appointments" linkLabel="All appointments">
-            <div className="divide-y divide-border">
+            <div className="stagger divide-y divide-border">
               {upcomingAppointments.slice(0, 3).map((appointment) => {
                 const where = [appointment.place, appointment.person && `with ${appointment.person}`].filter(Boolean).join(" · ");
                 return (
@@ -336,7 +332,7 @@ function OverviewPage({ care, currentUser }: { care: CareData; currentUser: Auth
 
         <div className="space-y-6">
           <OverviewCard title="Family" to="/circle" linkLabel="View family" iconOnlyLink>
-            <div className="space-y-4 pt-1">
+            <div className="stagger space-y-4 pt-1">
               {members.map((member) => (
                 <div key={member.id} className="flex items-center gap-3">
                   <FamilyAvatar initials={member.initials} tone={member.tone} imageUrl={member.avatarUrl} />
@@ -355,15 +351,13 @@ function OverviewPage({ care, currentUser }: { care: CareData; currentUser: Auth
   );
 }
 
-const overviewListLimit = 5;
-
 /** A plain titled card for the overview: one heading, one optional link, no eyebrow text. */
 function OverviewCard({ title, to, linkLabel, iconOnlyLink = false, children }: { title: string; to: string; linkLabel: string; iconOnlyLink?: boolean; children: React.ReactNode }) {
   return (
     <Card>
       <CardHeader className="items-center">
         <h2 className="font-display text-xl font-semibold">{title}</h2>
-        <Link to={to} aria-label={iconOnlyLink ? linkLabel : undefined} className="inline-flex shrink-0 items-center gap-1 rounded-md text-sm font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <Link to={to} aria-label={iconOnlyLink ? linkLabel : undefined} className="inline-flex shrink-0 items-center gap-1 rounded-md text-sm font-semibold text-primary link-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           {!iconOnlyLink && linkLabel}<ArrowRight size={15} aria-hidden="true" />
         </Link>
       </CardHeader>
@@ -384,13 +378,13 @@ function SummaryTile({ to, icon: Icon, label, value, tone, order }: { to: string
     <div ref={ref} className="reveal" style={{ "--reveal-delay": `${order * 70}ms` } as React.CSSProperties}>
       <Link
         to={to}
-        className="flex h-full items-center gap-4 rounded-2xl border border-border/60 bg-white/90 p-4 shadow-sm hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:p-5"
+        className="card-lift flex h-full items-center gap-4 rounded-2xl border border-border/60 bg-white/90 p-4 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:p-5"
       >
         <span className={`flex size-11 shrink-0 items-center justify-center rounded-xl shadow-md ${tone}`}>
           <Icon size={20} aria-hidden="true" />
         </span>
         <div className="min-w-0">
-          <p className="font-display text-3xl font-semibold leading-none">{value}</p>
+          <p className="font-display text-3xl font-semibold leading-none"><CountUp value={value} /></p>
           <p className="mt-1.5 truncate text-xs font-medium text-muted-foreground">{label}</p>
         </div>
       </Link>
@@ -410,7 +404,7 @@ function FamilyWorkloadBar({ name, activeTasks, maxTasks }: { name: string; acti
         aria-valuetext={`${activeTasks} active tasks`}
         className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-muted"
       >
-        <div className="h-full rounded-full bg-primary" style={{ width: `${(activeTasks / maxTasks) * 100}%` }} />
+        <div className="bar-fill h-full rounded-full bg-primary" style={{ width: `${(activeTasks / maxTasks) * 100}%` }} />
       </div>
       <span className="w-4 text-right text-xs font-semibold tabular-nums text-muted-foreground">{activeTasks}</span>
     </div>
@@ -434,16 +428,47 @@ function CarePlanPage({ care, currentUser }: { care: CareData; currentUser: Auth
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [recommendationTaskId, setRecommendationTaskId] = useState<string | null>(null);
   const [isCreatingTask, setIsCreatingTask] = useState(false);
+  const [isImportingDocument, setIsImportingDocument] = useState(false);
+  // Set while the form holds a draft from a document: what to tell the person to check, and how to mark the draft as added.
+  const [draftNote, setDraftNote] = useState("");
+  const markDraftAdded = useRef<(() => void) | null>(null);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskDetail, setNewTaskDetail] = useState("");
   const [newTaskLocation, setNewTaskLocation] = useState("");
   const [newTaskDate, setNewTaskDate] = useState(() => getLocalDateInputValue());
   const [newTaskTime, setNewTaskTime] = useState("18:00");
   const [newTaskPriority, setNewTaskPriority] = useState<CareTask["priority"]>("Normal");
+  const [newTaskRecurrence, setNewTaskRecurrence] = useState<TaskRecurrence | null>(null);
   const selectedTask = tasks.find((task) => task.id === selectedTaskId);
   const recommendationTask = tasks.find((task) => task.id === recommendationTaskId);
 
   const toggleTask = (task: CareTask) => task.complete ? care.reopenTask(task.id) : care.completeTask(task.id);
+
+  const clearDraft = () => {
+    setDraftNote("");
+    markDraftAdded.current = null;
+  };
+
+  /** Put a draft from a document into the new-task form for the person to check. */
+  const reviewDraft = (draft: TaskDraft, markAdded: () => void) => {
+    const today = getLocalDateInputValue();
+    const dateHasPassed = draft.dueDate !== null && draft.dueDate < today;
+    setNewTaskTitle(draft.title);
+    setNewTaskDetail(draft.detail);
+    setNewTaskLocation(draft.location ?? "");
+    setNewTaskDate(draft.dueDate && !dateHasPassed ? draft.dueDate : today);
+    setNewTaskTime(draft.dueTime ?? (draft.dueDate ? "09:00" : "18:00"));
+    setNewTaskPriority(draft.priority);
+    setNewTaskRecurrence(null);
+    setDraftNote(
+      !draft.dueDate ? "The document gave no date, so the due date is set to today. Change it if needed."
+        : dateHasPassed ? "The date in the document has already passed, so the due date is set to today. Change it if needed."
+          : !draft.dueTime ? "The document gave no time, so it is set to 9:00 AM. Change it if needed."
+            : "Check the details against the document before creating the task.",
+    );
+    markDraftAdded.current = markAdded;
+    setIsCreatingTask(true);
+  };
 
   const createTask = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -453,16 +478,20 @@ function CarePlanPage({ care, currentUser }: { care: CareData; currentUser: Auth
       location: newTaskLocation.trim() || undefined,
       dueAt: localInputsToIso(newTaskDate, newTaskTime),
       priority: newTaskPriority,
+      recurrence: newTaskRecurrence,
     });
     if (!created) return;
+    markDraftAdded.current?.();
     setRecommendationTaskId(created.id);
     setNewTaskPriority("Normal");
+    setNewTaskRecurrence(null);
     setNewTaskTitle("");
     setNewTaskDetail("");
     setNewTaskLocation("");
     setNewTaskDate(getLocalDateInputValue());
     setNewTaskTime("18:00");
     setIsCreatingTask(false);
+    clearDraft();
     setActiveFilter("All");
     setPriorityFilter("All priorities");
     setAssigneeFilter("All assignees");
@@ -520,19 +549,24 @@ function CarePlanPage({ care, currentUser }: { care: CareData; currentUser: Auth
         <p className="text-sm text-muted-foreground">{tasks.filter((task) => !task.complete).length} active · {tasks.filter((task) => task.complete).length} completed</p>
         <div className="flex items-center gap-3">
           <span className="hidden items-center gap-2 text-xs text-muted-foreground sm:inline-flex"><UsersRound size={15} aria-hidden="true" />Shared with {members.length} family {members.length === 1 ? "member" : "members"}</span>
-          <Button size="sm" onClick={() => setIsCreatingTask((current) => !current)}><Plus size={15} aria-hidden="true" />New task</Button>
+          <Button size="sm" variant="outline" aria-expanded={isImportingDocument} onClick={() => setIsImportingDocument((current) => !current)}><FileText size={15} aria-hidden="true" />From a document</Button>
+          <Button size="sm" onClick={() => { clearDraft(); setIsCreatingTask((current) => !current); }}><Plus size={15} aria-hidden="true" />New task</Button>
         </div>
       </div>
+      {isImportingDocument && (
+        <DocumentImport className="mb-5" onReview={reviewDraft} onClose={() => { setIsImportingDocument(false); if (draftNote) { clearDraft(); setIsCreatingTask(false); } }} />
+      )}
       {isCreatingTask && (
         <Card className="relative z-10 mb-5">
-          <CardHeader><div><p className="text-xs font-semibold uppercase tracking-[0.1em] text-primary">Household delegation</p><h2 className="mt-1 font-display text-xl font-semibold">Create a task</h2></div></CardHeader>
+          <CardHeader><div><p className="text-xs font-semibold uppercase tracking-[0.1em] text-primary">{draftNote ? "Drafted from your document" : "Household delegation"}</p><h2 className="mt-1 font-display text-xl font-semibold">{draftNote ? "Check this task" : "Create a task"}</h2></div></CardHeader>
           <CardContent>
+            {draftNote && <p role="status" className="mb-4 rounded-lg bg-primary/5 px-3 py-2.5 text-sm text-foreground/80">{draftNote}</p>}
             <form onSubmit={createTask} className="grid gap-4 sm:grid-cols-2">
               <label className="text-sm font-medium sm:col-span-2">Task title
                 <input required maxLength={100} value={newTaskTitle} onChange={(event) => setNewTaskTitle(event.target.value)} className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2.5 font-normal focus:outline-none focus:ring-2 focus:ring-ring" />
               </label>
               <label className="text-sm font-medium sm:col-span-2">Details <span className="font-normal text-muted-foreground">(optional)</span>
-                <input maxLength={180} value={newTaskDetail} onChange={(event) => setNewTaskDetail(event.target.value)} className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2.5 font-normal focus:outline-none focus:ring-2 focus:ring-ring" />
+                <textarea rows={2} maxLength={500} value={newTaskDetail} onChange={(event) => setNewTaskDetail(event.target.value)} className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2.5 font-normal focus:outline-none focus:ring-2 focus:ring-ring" />
               </label>
               <label className="text-sm font-medium sm:col-span-2">Location <span className="font-normal text-muted-foreground">(optional)</span>
                 <input maxLength={120} value={newTaskLocation} onChange={(event) => setNewTaskLocation(event.target.value)} className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2.5 font-normal focus:outline-none focus:ring-2 focus:ring-ring" />
@@ -562,8 +596,25 @@ function CarePlanPage({ care, currentUser }: { care: CareData; currentUser: Auth
                   ))}
                 </div>
               </div>
+              <div className="text-sm font-medium sm:col-span-2">
+                <span id="new-task-repeat-label">Repeat</span>
+                <div role="radiogroup" aria-labelledby="new-task-repeat-label" className="mt-1.5 grid grid-cols-5 gap-1 rounded-lg border border-border bg-muted/60 p-1">
+                  {recurrenceOptions.map((option) => (
+                    <button
+                      key={option.label}
+                      type="button"
+                      role="radio"
+                      aria-checked={newTaskRecurrence === option.value}
+                      onClick={() => setNewTaskRecurrence(option.value)}
+                      className={`rounded-md px-1 py-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:text-sm ${newTaskRecurrence === option.value ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div className="flex items-end justify-end gap-2 sm:col-span-2">
-                <Button type="button" variant="outline" onClick={() => setIsCreatingTask(false)}>Cancel</Button>
+                <Button type="button" variant="outline" onClick={() => { setIsCreatingTask(false); clearDraft(); }}>Cancel</Button>
                 <Button type="submit">Create task</Button>
               </div>
             </form>
@@ -647,7 +698,7 @@ function CarePlanPage({ care, currentUser }: { care: CareData; currentUser: Auth
         <div className="hidden grid-cols-[minmax(240px,1.6fr)_minmax(225px,1.35fr)_minmax(145px,1fr)_minmax(100px,0.8fr)] gap-3 border-b border-border bg-muted/40 px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground xl:grid">
           <span>Task and recipient</span><span>Assignment</span><span>Due</span><span>Priority</span>
         </div>
-        <div id="tasks-panel" role="tabpanel" className="divide-y divide-border">
+        <div id="tasks-panel" role="tabpanel" className="stagger divide-y divide-border">
           {sortedTasks.map((task) => (
             <TaskListItem
               key={task.id}
@@ -669,6 +720,7 @@ function CarePlanPage({ care, currentUser }: { care: CareData; currentUser: Auth
           activity={selectedTask.activity}
           onClose={() => setSelectedTaskId(null)}
           onReassign={(assigneeId) => void care.assignTask(selectedTask.id, assigneeId)}
+          onStopRepeating={() => void care.stopRepeating(selectedTask.id)}
           onComplete={() => void toggleTask(selectedTask)}
         />
       )}
@@ -719,15 +771,16 @@ function TaskListItem({
           onClick={onToggle}
           aria-label={`${task.complete ? "Reopen" : "Mark complete"}: ${task.title}`}
           aria-pressed={task.complete}
-          className={`mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${task.complete ? "border-primary bg-primary text-primary-foreground" : "border-input bg-background hover:border-primary"}`}
+          className={`task-check mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${task.complete ? "border-primary bg-primary text-primary-foreground" : "border-input bg-background hover:border-primary"}`}
         >
-          {task.complete && <Check size={12} aria-hidden="true" />}
+          {/* Always present, so the tick can draw itself when the task is completed. */}
+          <Check size={12} strokeWidth={3} aria-hidden="true" />
         </button>
         <div className="min-w-0">
-          <button type="button" onClick={onOpen} className="text-left text-sm font-semibold hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          <button type="button" onClick={onOpen} data-done={task.complete} className="task-title text-left text-sm font-semibold hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
             {task.title}
           </button>
-          <button type="button" onClick={onOpen} className="mt-1 block text-xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">View details</button>
+          <button type="button" onClick={onOpen} className="mt-1 block text-xs font-medium text-primary link-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">View details</button>
         </div>
       </div>
       <div className="min-w-0 text-xs text-muted-foreground">
@@ -777,7 +830,10 @@ function TaskListItem({
       </div>
       <div className="text-sm">
         <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground xl:hidden">Due</span>
-        <span className="inline-flex items-center gap-1.5 text-foreground/80"><Clock3 size={14} aria-hidden="true" />{task.time}</span>
+        <span className="inline-flex items-center gap-1.5 text-foreground/80">
+          <Clock3 size={14} aria-hidden="true" />{task.time}
+          {task.recurrence && <span title={recurrencePhrases[task.recurrence]} className="inline-flex text-primary"><Repeat size={13} aria-hidden="true" /><span className="sr-only">{recurrencePhrases[task.recurrence]}</span></span>}
+        </span>
       </div>
       <div>
         <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground xl:hidden">Priority</span>
@@ -832,6 +888,7 @@ function TaskDetailDialog({
   activity,
   onClose,
   onReassign,
+  onStopRepeating,
   onComplete,
 }: {
   task: CareTask;
@@ -839,6 +896,7 @@ function TaskDetailDialog({
   activity: TaskActivity[];
   onClose: () => void;
   onReassign: (assigneeId: string) => void;
+  onStopRepeating: () => void;
   onComplete: () => void;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -900,6 +958,13 @@ function TaskDetailDialog({
             <li className="flex items-center gap-2.5">
               <UserRound size={15} aria-hidden="true" className="shrink-0 text-muted-foreground" />
               <span>For {recipient}</span>
+            </li>
+          )}
+          {task.recurrence && (
+            <li className="flex items-center gap-2.5">
+              <Repeat size={15} aria-hidden="true" className="shrink-0 text-muted-foreground" />
+              <span>{recurrencePhrases[task.recurrence]}</span>
+              <button type="button" onClick={onStopRepeating} className="link-underline rounded text-xs font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Stop repeating</button>
             </li>
           )}
         </ul>
@@ -1021,7 +1086,7 @@ function AppointmentsPage({ care }: { care: CareData }) {
           <span className="flex size-10 items-center justify-center rounded-lg bg-accent text-accent-foreground"><CalendarDays size={19} aria-hidden="true" /></span>
           <div><h2 className="font-display text-lg font-semibold">Upcoming</h2><p className="text-xs text-muted-foreground">Today is {formatLongDate()}</p></div>
         </div>
-        <div className="divide-y divide-border">
+        <div className="stagger divide-y divide-border">
           {upcomingAppointments.map((appointment) => (
             <div key={appointment.id} className="grid gap-3 py-5 sm:grid-cols-[92px_1fr_auto] sm:items-center">
               <p className="text-sm font-semibold text-primary">{appointment.date}<span className="block text-foreground">{appointment.time}</span></p>
@@ -1061,6 +1126,7 @@ function CareCirclePage({ care, family, currentUser }: { care: CareData; family:
   const [availabilityDraft, setAvailabilityDraft] = useState<Availability>(me?.availability ?? "Available");
   const [noteDraft, setNoteDraft] = useState(me?.availabilityNote ?? "");
   const [inviteCopied, setInviteCopied] = useState(false);
+  const [isDeletingFamily, setIsDeletingFamily] = useState(false);
   const maxWorkload = Math.max(1, ...members.map((member) => countActiveTasks(tasks, member.id)));
   const detailsChanged = roleDraft.trim() !== (me?.relationshipLabel ?? "")
     || availabilityDraft !== (me?.availability ?? "Available")
@@ -1135,7 +1201,7 @@ function CareCirclePage({ care, family, currentUser }: { care: CareData; family:
             </>
           )}
 
-          <div className="divide-y divide-border">
+          <div className="stagger divide-y divide-border">
           {members.map((member) => (
             <div key={member.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 py-4 sm:px-2">
               <div className="flex min-w-0 items-center gap-3">
@@ -1152,7 +1218,6 @@ function CareCirclePage({ care, family, currentUser }: { care: CareData; family:
                 <FamilyAvatar initials={member.initials} tone={member.tone} imageUrl={member.avatarUrl} className="size-10" />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold">{member.name}{member.id === currentUser.id && <span className="font-normal text-muted-foreground"> (you)</span>}</p>
-                  <p className="text-xs text-muted-foreground">{member.role} · {member.availabilityNote ?? member.availability}</p>
                   <FamilyWorkloadBar name={member.name} activeTasks={countActiveTasks(tasks, member.id)} maxTasks={maxWorkload} />
                 </div>
               </div>
@@ -1163,7 +1228,7 @@ function CareCirclePage({ care, family, currentUser }: { care: CareData; family:
             <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-border pt-4 text-xs text-muted-foreground sm:px-2">
               <span>Invite code</span>
               <code className="font-mono tracking-widest text-foreground/80">{family.inviteCode}</code>
-              <button type="button" onClick={() => void copyInviteCode()} className="font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <button type="button" onClick={() => void copyInviteCode()} className="font-semibold text-primary link-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                 {inviteCopied ? "Copied" : "Copy"}
               </button>
               <span className="basis-full sm:basis-auto">· Share it so someone with an account can join.</span>
@@ -1171,7 +1236,63 @@ function CareCirclePage({ care, family, currentUser }: { care: CareData; family:
           )}
         </CardContent>
       </Card>
+      <FamilyStats className="mt-6" members={members} tasks={tasks} />
+      {isEditing && isAdmin && (
+        <div className="mt-6 flex justify-end">
+          <button type="button" onClick={() => setIsDeletingFamily(true)} className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-alert hover:bg-alert/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-alert">
+            <Trash2 size={15} aria-hidden="true" />Delete family
+          </button>
+        </div>
+      )}
+      {isDeletingFamily && <DeleteFamilyDialog familyName={family.name} onDelete={care.deleteFamily} onClose={() => setIsDeletingFamily(false)} />}
     </>
+  );
+}
+
+/** Asks for the family's name before deleting it, so it cannot happen by a stray click. */
+function DeleteFamilyDialog({ familyName, onDelete, onClose }: { familyName: string; onDelete: (confirmName: string) => Promise<boolean | undefined>; onClose: () => void }) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const [typedName, setTypedName] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
+  const matches = typedName.trim().toLowerCase() === familyName.trim().toLowerCase();
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (dialog && !dialog.open) dialog.showModal();
+  }, []);
+
+  const submit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!matches) return;
+    setIsDeleting(true);
+    // On success the whole page is replaced by the create-or-join screen, so there is nothing left to close.
+    if (!(await onDelete(typedName))) {
+      setIsDeleting(false);
+      dialogRef.current?.close();
+    }
+  };
+
+  return (
+    <dialog
+      ref={dialogRef}
+      aria-labelledby="delete-family-title"
+      onClose={onClose}
+      onClick={(event) => { if (event.target === event.currentTarget) event.currentTarget.close(); }}
+      className="fixed inset-0 m-auto w-[calc(100%-2rem)] max-w-md rounded-xl border border-border bg-card p-0 text-foreground shadow-xl backdrop:bg-foreground/35"
+    >
+      <form onSubmit={submit} className="p-5 sm:p-7">
+        <h2 id="delete-family-title" className="font-display text-2xl font-semibold">Delete {familyName}?</h2>
+        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">Every task, appointment and note is removed for everyone. This cannot be undone.</p>
+        <label className="mt-5 block text-sm font-medium" htmlFor="delete-family-name">Type <span className="font-semibold">{familyName}</span> to confirm</label>
+        <input id="delete-family-name" autoFocus autoComplete="off" value={typedName} onChange={(event) => setTypedName(event.target.value)} className={fieldClassName} />
+        <div className="mt-6 flex justify-end gap-2">
+          <Button type="button" variant="outline" onClick={() => dialogRef.current?.close()}>Cancel</Button>
+          <button type="submit" disabled={!matches || isDeleting} className="inline-flex h-10 items-center justify-center rounded-md bg-alert px-4 text-sm font-semibold text-white shadow-sm hover:-translate-y-0.5 hover:shadow-lg hover:shadow-alert/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-alert focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50">
+            {isDeleting ? "Deleting…" : "Delete family"}
+          </button>
+        </div>
+      </form>
+    </dialog>
   );
 }
 
@@ -1199,15 +1320,6 @@ function ActivityCard({ activity, members, to }: { activity: readonly FamilyActi
       <CardHeader><div><p className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">Latest family updates</p><h2 className="mt-1 font-display text-xl font-semibold">Family activity</h2></div><ActivityIcon size={18} className="mt-1 text-primary" aria-hidden="true" /></CardHeader>
       <CardContent className="pt-4">{rows}</CardContent>
     </Card>
-  );
-}
-
-function TaskRow({ task }: { task: CareTask }) {
-  return (
-    <div className="flex items-center justify-between gap-4 py-3.5">
-      <p className="min-w-0 truncate text-sm font-semibold">{task.title}</p>
-      <span className={`shrink-0 whitespace-nowrap text-sm font-medium ${task.attention === "Overdue" ? "text-alert" : "text-muted-foreground"}`}>{task.time}</span>
-    </div>
   );
 }
 

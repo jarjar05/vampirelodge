@@ -1,9 +1,8 @@
-import { useState, type FormEvent } from "react";
-import { HeartPulse, LockKeyhole, Mail, UserRound } from "lucide-react";
+import { useRef, useState, type FormEvent, type InputHTMLAttributes } from "react";
+import { HeartPulse, LockKeyhole, Mail, UserRound, type LucideIcon } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { api, ApiError } from "@/api/client";
 import { PhoneInput } from "@/components/phone-input";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 
 export interface AuthUser {
@@ -26,9 +25,22 @@ interface LoginLocationState {
 
 // Keep in step with MIN_PASSWORD_LENGTH in backend/app/schemas/auth.py.
 const minPasswordLength = 12;
-const inputClassName = "h-11 w-full rounded-xl border border-input bg-background pl-10 pr-3 text-sm font-normal outline-none transition focus:ring-2 focus:ring-ring";
+// How long the tick shows, and how long the page takes to lift away, before the app appears.
+const tickMs = 650;
+const leaveMs = 300;
 const phoneFieldClassName = "h-11 rounded-xl border border-input bg-background px-3 text-sm font-normal outline-none transition focus:ring-2 focus:ring-ring";
-const iconClassName = "pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground";
+
+/** A text field whose label sits inside the box and lifts to the top when the field is focused or filled. */
+function FloatingField({ id, label, icon: Icon, ...input }: { id: string; label: string; icon: LucideIcon } & InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <div className="float-field relative">
+      <Icon size={16} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+      {/* The single-space placeholder is what lets the styles tell an empty field from a filled one. */}
+      <input id={id} placeholder=" " className="h-14 w-full rounded-xl border border-input bg-background pb-1.5 pl-10 pr-3 pt-5 text-sm font-normal outline-none" {...input} />
+      <label htmlFor={id} className="pointer-events-none absolute left-10 top-[1.05rem] text-sm text-muted-foreground">{label}</label>
+    </div>
+  );
+}
 
 export function LoginPage({ familyName, onAuthenticated }: LoginPageProps) {
   const [mode, setMode] = useState<"sign-in" | "create">("sign-in");
@@ -39,7 +51,9 @@ export function LoginPage({ familyName, onAuthenticated }: LoginPageProps) {
   const [password, setPassword] = useState("");
   const [passwordConfirmation, setPasswordConfirmation] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitState, setSubmitState] = useState<"idle" | "loading" | "done">("idle");
+  const [isLeaving, setIsLeaving] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -59,39 +73,60 @@ export function LoginPage({ familyName, onAuthenticated }: LoginPageProps) {
       setErrorMessage("Passwords do not match.");
       return;
     }
-    setIsSubmitting(true);
+    setSubmitState("loading");
 
     try {
       const user = isCreating
         ? await api<AuthUser>("/auth/register", { method: "POST", body: { name, email, phone: phone.trim() || null, password } })
         : await api<AuthUser>("/auth/login", { method: "POST", body: signInWith === "email" ? { email, password } : { phone, password } });
-      onAuthenticated(user);
-      const redirectPath = (location.state as LoginLocationState | null)?.from ?? "/";
-      navigate(redirectPath.startsWith("/") && redirectPath !== "/login" ? redirectPath : "/", { replace: true });
+      const enterApp = () => {
+        onAuthenticated(user);
+        const redirectPath = (location.state as LoginLocationState | null)?.from ?? "/";
+        navigate(redirectPath.startsWith("/") && redirectPath !== "/login" ? redirectPath : "/", { replace: true });
+      };
+      // Show the tick, let the page lift away, then hand over to the app. Skipped for people who prefer less motion.
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        enterApp();
+        return;
+      }
+      setSubmitState("done");
+      window.setTimeout(() => setIsLeaving(true), tickMs);
+      window.setTimeout(enterApp, tickMs + leaveMs);
     } catch (error) {
+      setSubmitState("idle");
+      // Restart the shake each time, even when the same message is shown twice in a row.
+      const card = cardRef.current;
+      if (card) {
+        card.classList.remove("shake");
+        void card.offsetWidth;
+        card.classList.add("shake");
+      }
       if (!isCreating && error instanceof ApiError && error.status === 401) {
         setErrorMessage(`${signInWith === "email" ? "Email" : "Phone number"} or password is incorrect.`);
       } else {
         setErrorMessage(error instanceof Error ? error.message : "Unable to sign in. Please try again.");
       }
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
   return (
-    <main className="app-backdrop grid min-h-screen place-items-center px-5 py-10 text-foreground">
-      <div className="w-full max-w-md">
+    <main className="app-backdrop relative grid min-h-screen place-items-center overflow-hidden px-5 py-10 text-foreground">
+      <div aria-hidden="true" className="login-blob one" />
+      <div aria-hidden="true" className="login-blob two" />
+      <div aria-hidden="true" className="login-blob three" />
+      <div className={`relative w-full max-w-md ${isLeaving ? "login-leaving" : ""}`}>
         <div className="mb-7 flex flex-col items-center text-center">
-          <span className="flex size-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-md shadow-primary/20">
+          <span className="enter-rise flex size-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-md shadow-primary/20">
             <HeartPulse size={24} aria-hidden="true" />
           </span>
-          <p className="mt-4 text-sm font-semibold text-primary">{familyName}</p>
-          <h1 className="mt-1 font-display text-3xl font-semibold">{isCreating ? "Create your account" : "Welcome back"}</h1>
-          <p className="mt-2 text-sm text-muted-foreground">{isCreating ? "Then set up a family space or join one with an invite code." : "Sign in to coordinate your family’s care."}</p>
+          <p className="enter-rise mt-4 text-sm font-semibold text-primary" style={{ "--i": 1 } as React.CSSProperties}>{familyName}</p>
+          <h1 className="enter-rise mt-1 font-display text-3xl font-semibold" style={{ "--i": 2 } as React.CSSProperties}>{isCreating ? "Create your account" : "Welcome back"}</h1>
+          <p className="enter-rise mt-2 text-sm text-muted-foreground" style={{ "--i": 3 } as React.CSSProperties}>{isCreating ? "Then set up a family space or join one with an invite code." : "Sign in to coordinate your family’s care."}</p>
         </div>
 
-        <Card className="bg-white/90 shadow-md backdrop-blur-xl">
+        <div className="enter-card">
+        <div ref={cardRef}>
+        <Card className="is-visible bg-white/90 shadow-md backdrop-blur-xl">
           <CardHeader>
             <div>
               <h2 className="font-display text-xl font-semibold">{isCreating ? "Create an account" : "Sign in"}</h2>
@@ -101,23 +136,7 @@ export function LoginPage({ familyName, onAuthenticated }: LoginPageProps) {
           <CardContent className="pt-5">
             <form onSubmit={handleSubmit} className="space-y-4">
               {isCreating && (
-                <label className="block text-sm font-medium" htmlFor="login-name">Full name
-                  <span className="relative mt-1.5 block">
-                    <UserRound size={16} aria-hidden="true" className={iconClassName} />
-                    <input
-                      id="login-name"
-                      name="name"
-                      type="text"
-                      autoComplete="name"
-                      required
-                      autoFocus
-                      maxLength={150}
-                      value={name}
-                      onChange={(event) => setName(event.target.value)}
-                      className={inputClassName}
-                    />
-                  </span>
-                </label>
+                <FloatingField id="login-name" label="Full name" icon={UserRound} name="name" type="text" autoComplete="name" required autoFocus maxLength={150} value={name} onChange={(event) => setName(event.target.value)} />
               )}
               {!isCreating && (
                 <div role="radiogroup" aria-label="Sign in with" className="grid grid-cols-2 gap-1 rounded-xl border border-border bg-muted/60 p-1">
@@ -136,22 +155,7 @@ export function LoginPage({ familyName, onAuthenticated }: LoginPageProps) {
                 </div>
               )}
               {(isCreating || signInWith === "email") && (
-                <label className="block text-sm font-medium" htmlFor="login-email">Email address
-                  <span className="relative mt-1.5 block">
-                    <Mail size={16} aria-hidden="true" className={iconClassName} />
-                    <input
-                      id="login-email"
-                      name="email"
-                      type="email"
-                      autoComplete="username"
-                      required
-                      autoFocus={!isCreating}
-                      value={email}
-                      onChange={(event) => setEmail(event.target.value)}
-                      className={inputClassName}
-                    />
-                  </span>
-                </label>
+                <FloatingField id="login-email" label="Email address" icon={Mail} name="email" type="email" autoComplete="username" required autoFocus={!isCreating} value={email} onChange={(event) => setEmail(event.target.value)} />
               )}
               {(isCreating || signInWith === "phone") && (
                 <label className="block text-sm font-medium" htmlFor="login-phone">Phone number {isCreating && <span className="font-normal text-muted-foreground">(optional)</span>}
@@ -170,49 +174,30 @@ export function LoginPage({ familyName, onAuthenticated }: LoginPageProps) {
                   {isCreating && <span className="mt-1.5 block text-xs font-normal text-muted-foreground">Add one to sign in with your phone as well.</span>}
                 </label>
               )}
-              <label className="block text-sm font-medium" htmlFor="login-password">Password
-                <span className="relative mt-1.5 block">
-                  <LockKeyhole size={16} aria-hidden="true" className={iconClassName} />
-                  <input
-                    id="login-password"
-                    name="password"
-                    type="password"
-                    autoComplete={isCreating ? "new-password" : "current-password"}
-                    required
-                    minLength={isCreating ? minPasswordLength : undefined}
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    className={inputClassName}
-                  />
-                </span>
-              </label>
+              <FloatingField id="login-password" label="Password" icon={LockKeyhole} name="password" type="password" autoComplete={isCreating ? "new-password" : "current-password"} required minLength={isCreating ? minPasswordLength : undefined} value={password} onChange={(event) => setPassword(event.target.value)} />
               {isCreating && (
-                <label className="block text-sm font-medium" htmlFor="login-password-confirmation">Confirm password
-                  <span className="relative mt-1.5 block">
-                    <LockKeyhole size={16} aria-hidden="true" className={iconClassName} />
-                    <input
-                      id="login-password-confirmation"
-                      name="password-confirmation"
-                      type="password"
-                      autoComplete="new-password"
-                      required
-                      value={passwordConfirmation}
-                      onChange={(event) => setPasswordConfirmation(event.target.value)}
-                      className={inputClassName}
-                    />
-                  </span>
-                </label>
+                <FloatingField id="login-password-confirmation" label="Confirm password" icon={LockKeyhole} name="password-confirmation" type="password" autoComplete="new-password" required value={passwordConfirmation} onChange={(event) => setPasswordConfirmation(event.target.value)} />
               )}
               {errorMessage && <p role="alert" className="rounded-lg bg-alert/10 px-3 py-2 text-sm text-alert">{errorMessage}</p>}
-              <Button type="submit" className="h-11 w-full rounded-xl" disabled={isSubmitting}>
-                {isCreating ? (isSubmitting ? "Creating account…" : "Create account") : (isSubmitting ? "Signing in…" : "Sign in")}
-              </Button>
+              {/* The button shrinks to a circle with a spinner while waiting, then draws a tick on success. */}
+              <div className="grid justify-items-center">
+                <button type="submit" className="submit-morph focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" data-state={submitState} disabled={submitState !== "idle"}>
+                  <span className="submit-text">{isCreating ? "Create account" : "Sign in"}</span>
+                  <span className="submit-spinner" aria-hidden="true" />
+                  <span className="submit-tick" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+                  </span>
+                  <span className="sr-only" role="status">{submitState === "loading" ? (isCreating ? "Creating account…" : "Signing in…") : submitState === "done" ? "Signed in" : ""}</span>
+                </button>
+              </div>
             </form>
           </CardContent>
         </Card>
-        <p className="mt-5 text-center text-sm text-muted-foreground">
+        </div>
+        </div>
+        <p className="enter-rise mt-5 text-center text-sm text-muted-foreground" style={{ "--i": 6 } as React.CSSProperties}>
           {isCreating ? "Already have an account?" : "New here?"}{" "}
-          <button type="button" onClick={switchMode} className="font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          <button type="button" onClick={switchMode} className="font-semibold text-primary link-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
             {isCreating ? "Sign in" : "Create an account"}
           </button>
         </p>

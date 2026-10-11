@@ -178,7 +178,7 @@ export function FamilyAssignmentSuggestion({
           {ai.status === "unavailable" && (
             <p className="mt-3 text-xs text-muted-foreground">
               {ai.message}{" "}
-              <button type="button" onClick={() => setAttempt((current) => current + 1)} className="rounded font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Try again</button>
+              <button type="button" onClick={() => setAttempt((current) => current + 1)} className="rounded font-semibold text-primary link-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Try again</button>
             </p>
           )}
           <div className="mt-3 border-t border-primary/10 pt-3">

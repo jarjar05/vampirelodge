@@ -4,6 +4,8 @@ import type {
   AssignmentSuggestion,
   CalendarStatus,
   DayPlan,
+  DocumentDrafts,
+  TaskRecurrence,
   Availability,
   CareAppointment,
   CareTask,
@@ -14,6 +16,7 @@ import type {
   KnowledgeSearchResult,
   TaskActivity,
   TaskActivityAction,
+  TelegramStatus,
 } from "@/types/care";
 
 // Shapes returned by the backend. Pages use the view types from @/types/care instead.
@@ -52,6 +55,8 @@ export type ApiTask = {
   status: CareTask["status"];
   recipient: string;
   created_at: string;
+  completed_at: string | null;
+  recurrence: TaskRecurrence | null;
   activity: ApiActivity[];
 };
 
@@ -92,7 +97,7 @@ function toKnowledgeDocument(document: ApiKnowledgeDocument): KnowledgeDocument 
   };
 }
 
-export type NewTask = { title: string; detail: string; location?: string; dueAt: string; priority: CareTask["priority"] };
+export type NewTask = { title: string; detail: string; location?: string; dueAt: string; priority: CareTask["priority"]; recurrence?: TaskRecurrence | null };
 export type NewAppointment = { title: string; place?: string; startsAt: string; attendeeId: string | null };
 export type MemberChanges = { relationshipLabel?: string | null; availability?: Availability; availabilityNote?: string | null };
 
@@ -111,6 +116,8 @@ export const careApi = {
   getFamily: () => api<ApiFamily>("/families/me"),
   createFamily: (name: string) => api("/families", { method: "POST", body: { name } }),
   joinFamily: (inviteCode: string) => api("/families/join", { method: "POST", body: { invite_code: inviteCode } }),
+  /** Deletes the family and everything stored for it. The name must be typed to confirm. */
+  deleteFamily: (confirmName: string) => api("/families/me", { method: "DELETE", body: { confirm_name: confirmName } }),
   renameFamily: (name: string) => api<ApiFamily>("/families/me", { method: "PATCH", body: { name } }),
   listMembers: () => api<ApiMember[]>("/families/me/members"),
   updateMember: (userId: string, changes: MemberChanges) => api<ApiMember>(`/families/me/members/${userId}`, {
@@ -126,7 +133,7 @@ export const careApi = {
   listTasks: () => api<ApiTask[]>("/families/me/tasks"),
   createTask: (task: NewTask) => api<ApiTask>("/families/me/tasks", {
     method: "POST",
-    body: { title: task.title, detail: task.detail, location: task.location || null, due_at: task.dueAt, priority: task.priority },
+    body: { title: task.title, detail: task.detail, location: task.location || null, due_at: task.dueAt, priority: task.priority, recurrence: task.recurrence ?? null },
   }),
   assignTask: (taskId: string, assigneeId: string | null) => api<ApiTask>(`/families/me/tasks/${taskId}/assign`, {
     method: "POST",
@@ -134,7 +141,21 @@ export const careApi = {
   }),
   taskAction: (taskId: string, action: "complete" | "reopen") =>
     api<ApiTask>(`/families/me/tasks/${taskId}/${action}`, { method: "POST" }),
+  stopRepeating: (taskId: string) => api<ApiTask>(`/families/me/tasks/${taskId}/stop-repeating`, { method: "POST" }),
   listActivity: () => api<ApiFamilyActivity[]>("/families/me/activity?limit=20"),
+  /** Reads an uploaded file or pasted text and drafts tasks from it. Nothing is created. */
+  draftTasksFromDocument: async (source: { filename: string; contentType: string; dataBase64: string } | { text: string }): Promise<DocumentDrafts> => {
+    const drafts = await api<{ summary: string; tasks: { title: string; detail: string; location: string | null; due_date: string | null; due_time: string | null; priority: "High" | "Normal" | "Low" }[] }>("/families/me/tasks/from-document", {
+      method: "POST",
+      body: "text" in source
+        ? { text: source.text, timezone: localTimeZone() }
+        : { filename: source.filename, content_type: source.contentType, data_base64: source.dataBase64, timezone: localTimeZone() },
+    });
+    return {
+      summary: drafts.summary,
+      tasks: drafts.tasks.map((task) => ({ title: task.title, detail: task.detail, location: task.location, dueDate: task.due_date, dueTime: task.due_time?.slice(0, 5) ?? null, priority: task.priority })),
+    };
+  },
   /** Ids of members with an appointment or calendar event within an hour of the task's due time. No AI call is made. */
   busyMembersForTask: async (taskId: string): Promise<string[]> =>
     (await api<{ busy_member_ids: string[] }>(`/families/me/tasks/${taskId}/availability?timezone=${encodeURIComponent(localTimeZone())}`)).busy_member_ids,
@@ -160,6 +181,14 @@ export const careApi = {
     await api("/calendar", { method: "DELETE" });
     return { connected: false, syncedAt: null, eventCount: null, error: null };
   },
+
+  telegramStatus: async (): Promise<TelegramStatus> => {
+    const status = await api<{ configured: boolean; linked: boolean; telegram_username: string | null }>("/telegram");
+    return { configured: status.configured, linked: status.linked, telegramUsername: status.telegram_username };
+  },
+  /** Returns a one-time address that opens the bot in Telegram; pressing Start there completes the link. */
+  startTelegramLink: async () => (await api<{ url: string }>("/telegram/link", { method: "POST", body: { timezone: localTimeZone() } })).url,
+  unlinkTelegram: () => api("/telegram", { method: "DELETE" }),
 
   listKnowledge: async () => (await api<ApiKnowledgeDocument[]>("/families/me/knowledge")).map(toKnowledgeDocument),
   addKnowledge: async (document: NewKnowledgeDocument) =>
@@ -228,6 +257,8 @@ export function toTask(task: ApiTask, membersById: ReadonlyMap<string, FamilyMem
     time: formatDue(task.due_at),
     dueAt: task.due_at ?? undefined,
     createdAt: task.created_at,
+    completedAt: task.completed_at ?? undefined,
+    recurrence: task.recurrence ?? undefined,
     assigneeId: task.assignee_id,
     owner: assignee?.firstName ?? "Unassigned",
     initials: assignee?.initials.slice(0, 1) ?? "?",

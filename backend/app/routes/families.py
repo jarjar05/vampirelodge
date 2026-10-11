@@ -15,6 +15,7 @@ from app.models import Family, FamilyMembership, User
 from app.schemas.family import (
     FamilyCreateRequest,
     FamilyCreatedResponse,
+    FamilyDeleteRequest,
     FamilyJoinRequest,
     FamilyJoinResponse,
     FamilyMemberResponse,
@@ -23,6 +24,7 @@ from app.schemas.family import (
     FamilyUpdateRequest,
     MyFamilyResponse,
 )
+from app.services.family_deletion import delete_family
 from app.services.tasks import unassign_member_tasks
 
 router = APIRouter(prefix="/api/families", tags=["families"])
@@ -98,6 +100,15 @@ def rename_my_family(payload: FamilyUpdateRequest, family_access: FamilyMemberCo
     database.commit()
     database.refresh(family)
     return _my_family_response(family, family_access.membership.role)
+
+
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+def delete_my_family(payload: FamilyDeleteRequest, family_access: FamilyMemberContext, database: DatabaseSession) -> None:
+    """Delete the family and everything stored for it. Members keep their own accounts. This cannot be undone."""
+    _require_admin(family_access)
+    if payload.confirm_name.strip().casefold() != family_access.family.name.strip().casefold():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="That does not match the family's name.")
+    delete_family(database, family_access.family)
 
 
 @router.get("/me/members", response_model=list[FamilyMemberResponse])

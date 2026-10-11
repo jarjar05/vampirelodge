@@ -39,6 +39,24 @@ export type TaskActivity = {
   time: string;
 };
 
+export type TaskRecurrence = "daily" | "weekly" | "biweekly" | "monthly";
+
+/** Short labels for the Repeat choice, in the order they are offered. */
+export const recurrenceOptions: { value: TaskRecurrence | null; label: string }[] = [
+  { value: null, label: "Never" },
+  { value: "daily", label: "Daily" },
+  { value: "weekly", label: "Weekly" },
+  { value: "biweekly", label: "2 weeks" },
+  { value: "monthly", label: "Monthly" },
+];
+
+export const recurrencePhrases: Record<TaskRecurrence, string> = {
+  daily: "Repeats every day",
+  weekly: "Repeats every week",
+  biweekly: "Repeats every 2 weeks",
+  monthly: "Repeats every month",
+};
+
 export type CareTask = {
   id: string;
   title: string;
@@ -48,6 +66,10 @@ export type CareTask = {
   time: string;
   dueAt?: string;
   createdAt: string;
+  /** Set on a repeating task: completing it, or its due time passing, creates the next one. */
+  recurrence?: TaskRecurrence;
+  /** When it was marked complete; absent while the task is open. */
+  completedAt?: string;
   assigneeId: string | null;
   /** Assignee's first name, or "Unassigned". */
   owner: string;
@@ -100,6 +122,24 @@ export type AssignmentSuggestion = {
   noteTitles: string[];
 };
 
+/** A task the AI drafted from a document. It becomes a task only after the person has checked it. */
+export type TaskDraft = {
+  title: string;
+  detail: string;
+  location: string | null;
+  /** Local date as written in the document, YYYY-MM-DD. */
+  dueDate: string | null;
+  /** Local clock time, HH:MM. */
+  dueTime: string | null;
+  priority: "High" | "Normal" | "Low";
+};
+
+export type DocumentDrafts = {
+  /** One sentence saying what the document is. */
+  summary: string;
+  tasks: TaskDraft[];
+};
+
 /** Whether the signed-in person has linked a calendar. The link itself never leaves the server. */
 export type CalendarStatus = {
   connected: boolean;
@@ -107,6 +147,13 @@ export type CalendarStatus = {
   /** Busy times in the next 30 days; null when the calendar could not be read. */
   eventCount: number | null;
   error: string | null;
+};
+
+/** Whether the server has a Telegram bot, and whether the signed-in person has linked their Telegram account to it. */
+export type TelegramStatus = {
+  configured: boolean;
+  linked: boolean;
+  telegramUsername: string | null;
 };
 
 /** An AI summary of one person's open tasks, with a suggested order to do them in. */

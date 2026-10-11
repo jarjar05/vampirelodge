@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { usePopover } from "@/hooks/use-popover";
 import type { CareNotification } from "@/lib/notifications";
 
-const panelClassName = "absolute right-0 top-full z-30 mt-2 overflow-hidden rounded-xl border border-border bg-card text-foreground shadow-lg";
+const panelClassName = "menu-pop absolute right-0 top-full z-30 mt-2 overflow-hidden rounded-xl border border-border bg-card text-foreground shadow-lg";
 
 const toneDots: Record<CareNotification["tone"], string> = {
   alert: "bg-alert",
@@ -46,7 +46,7 @@ export function NotificationsMenu({
         <div className={`${panelClassName} w-80 max-w-[calc(100vw-2.5rem)]`}>
           <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
             <p className="text-sm font-semibold">Notifications</p>
-            {count > 1 && <button type="button" onClick={onDismissAll} className="rounded text-xs font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Clear all</button>}
+            {count > 1 && <button type="button" onClick={onDismissAll} className="rounded text-xs font-semibold text-primary link-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Clear all</button>}
           </div>
           {count === 0 ? (
             <p className="px-4 py-6 text-center text-sm text-muted-foreground">You’re all caught up.</p>
@@ -104,7 +104,7 @@ export function ProfileMenu({
         aria-label={`Account menu for ${name}`}
         aria-haspopup="true"
         aria-expanded={isOpen}
-        className="flex rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        className="avatar-button flex focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
       >
         {avatar}
       </button>

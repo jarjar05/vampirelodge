@@ -5,6 +5,7 @@ import type { AuthUser } from "@/components/auth/login-page";
 import { CalendarLink } from "@/components/calendar-link";
 import { FamilyAvatar } from "@/components/family-avatar";
 import { PhoneInput } from "@/components/phone-input";
+import { TelegramLink } from "@/components/telegram-link";
 import { Button } from "@/components/ui/button";
 import { fileToAvatarDataUrl } from "@/lib/image";
 import { availabilityOptions, type Availability, type FamilyMember } from "@/types/care";
@@ -196,6 +197,7 @@ export function ProfileSettingsDialog({
         </fieldset>
 
         <CalendarLink />
+        <TelegramLink />
 
         {errorMessage && <p role="alert" className="mt-4 rounded-lg bg-alert/10 px-3 py-2 text-sm text-alert">{errorMessage}</p>}
 

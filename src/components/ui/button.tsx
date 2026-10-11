@@ -7,8 +7,10 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground shadow-sm shadow-primary/30 hover:bg-primary/90 hover:shadow-md hover:shadow-primary/30 active:shadow-none",
-        outline: "border border-border bg-card hover:border-primary/40 hover:bg-primary/5 hover:text-primary",
+        // Lifts and gains a coloured shadow on hover, then presses back down on click.
+        default: "bg-primary text-primary-foreground shadow-sm shadow-primary/30 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/50 active:translate-y-0 active:shadow-sm",
+        // Fills with the brand colour from the left; see .btn-wipe in index.css.
+        outline: "btn-wipe border border-border bg-card",
         ghost: "hover:bg-primary/10 hover:text-primary",
       },
       size: {

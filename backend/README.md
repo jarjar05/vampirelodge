@@ -112,6 +112,8 @@ All family endpoints require the authenticated session cookie. A user can belong
 - `POST /api/families/join` joins by invite code. Request body: `{"invite_code":"ABC123"}`. Invalid codes and existing memberships are rejected.
 - `POST /api/families/leave` removes the authenticated user's membership. The final admin cannot leave until another admin exists.
 
+`DELETE /api/families/me` with `{"confirm_name":"<the family's name>"}` deletes the family. Admin only. It removes the family's tasks, task history, appointments, knowledge notes and their search chunks, bot drafts and memberships, then the family itself. Members keep their accounts and can create or join another family; sample members made by the demo seeder are deleted with it. It cannot be undone.
+
 ## Tasks, activity, and appointments API
 
 These routes require an authenticated family member and only ever read or change that member's own family.
@@ -122,6 +124,8 @@ These routes require an authenticated family member and only ever read or change
 - `POST /api/families/me/tasks/{task_id}/complete` and `/reopen` can be called by any family member.
 - `GET /api/families/me/activity?limit=20` returns the family's most recent task activity, newest first.
 - `GET /api/families/me/appointments`, `POST /api/families/me/appointments`, and `DELETE /api/families/me/appointments/{appointment_id}` manage appointments. Create body: `{"title":"GP review","place":"Riverside Family Practice","starts_at":"2026-10-11T10:30:00+08:00","attendee_id":null,"related_task_id":null}`.
+
+A task can repeat: send `"recurrence"` as `daily`, `weekly`, `biweekly` or `monthly` when creating it (a due time is required). A series always has one occurrence waiting. The next one is created when the latest is completed, or when its due time passes and someone next loads the task list; a long gap produces one new occurrence, not one per missed period. `POST /api/families/me/tasks/{task_id}/stop-repeating` ends the series and keeps the occurrences that exist.
 
 Task statuses are `Open` and `Completed`. "Unassigned", "overdue", and "at risk" are derived by the frontend from the assignee, due time, and status.
 
@@ -152,6 +156,8 @@ Restart the server after changing `.env`. `LLM_MODEL` is optional and defaults t
 
 - `POST /api/families/me/day-plan` with `{"timezone":"Asia/Singapore","refresh":false}` summarises the signed-in person's open tasks and suggests an order, returning `{"summary":"...","steps":[{"task_id":"...","note":"..."}],"generated_at":"..."}`. The last plan is kept in memory and reused until that person's tasks, appointments or calendar busy times change, a new day starts, or `refresh` is true. With no open tasks it returns an empty plan without calling the model.
 
+- `POST /api/families/me/tasks/from-document` reads a letter or email and drafts tasks from it. Send either a file as `{"filename":"letter.pdf","content_type":"application/pdf","data_base64":"..."}` or pasted text as `{"text":"..."}`, optionally with `timezone`. It returns `{"summary":"...","tasks":[{"title":"...","detail":"...","location":"...","due_date":"2026-11-14","due_time":"09:00:00","priority":"Normal"}]}`, at most five drafts. Nothing is created or stored: the app puts a draft into the new-task form, and the task exists only once the person submits it. Supported files, up to 5 MB: PDF with a text layer, JPEG/PNG/WebP/GIF pictures (read by the model), `.docx`, `.eml`, and plain text. The app converts photos to JPEG on a white background first, because the model cannot read dark text on a transparent picture.
+
 Both endpoints accept the browser's time zone (`?timezone=` on the suggestion) so times in the prompt read as the person sees them.
 
 All model calls go through `app/services/llm.py`, so changing provider means changing that one file. Text written by users (tasks, member details, knowledge) is passed to the model as data, and a model answer can never do more than name family members or that person's tasks and give short reasons. Each model call is one billed API request.
@@ -170,3 +176,30 @@ Only busy times are used: event titles, places and notes are never stored or sen
 The link is stored in the `users` table as plain text, because it has to be read back to download the feed. Only `https` links to public addresses are downloaded; links to this machine or a private network are refused.
 
 Do not commit `.env` or put secrets in source code. `.env.example` contains placeholders only.
+
+## Telegram bot
+
+Optional. With `TELEGRAM_BOT_TOKEN` set in `backend/.env`, the API process also runs a Telegram bot. Without it, nothing Telegram-related starts and the rest of the app is unaffected.
+
+Setup:
+
+1. In Telegram, open a chat with `@BotFather`, send `/newbot`, and follow the prompts. It gives you a token.
+2. Put the token in `backend/.env` as `TELEGRAM_BOT_TOKEN=...` and restart the server. The log shows `Telegram bot started`.
+3. Each person links their own account in the app: Profile settings, Telegram, Link Telegram, then Start in the bot chat.
+
+The bot uses long polling, so it needs no public web address and works on a laptop. Run only one copy of the server with the token: two would compete for the same messages.
+
+What it does:
+
+- **Overdue reminders.** Once a minute it looks for open tasks whose due time has passed in the last 24 hours and whose assignee has linked Telegram, and sends each one once, with a Done button that marks the task complete. Reassigning or reopening a task allows a new reminder. People who have not linked Telegram get nothing.
+- **Tasks from messages.** A message sent or forwarded to the bot in a private chat is read by the model and offered back as up to three task drafts, each with Add task and Ignore buttons. Nothing is created until Add is pressed. After adding, the bot suggests an assignee using the same logic as the app and offers to assign.
+- **Groups.** The bot acts only on a message that mentions it by name, or on the message being replied to when the reply mentions it. Every other group message is ignored without being read. Leave the bot's privacy mode on (BotFather's default) so Telegram does not even deliver the rest.
+
+- **When the model is unavailable.** If OpenAI cannot be reached, or no key is set, the bot asks for the details itself, one question at a time: name, date, time, place. Common answers are buttons; typed dates such as `14 Nov`, `14/11`, `Friday` or `tomorrow` and times such as `5:30pm` or `17:30` are understood without any AI. `/new` starts the same questions on purpose, and `/cancel` stops them. In a group, answers must be sent as replies to the bot. The assignee suggestion then comes from a plain rule: free at that time, marked available, fewest open tasks.
+
+Only people who linked their account can use the bot, and a draft can be confirmed only by the person who asked for it. Text only for now: pictures and files are not read.
+
+- `GET /api/telegram` returns `{"configured":true,"linked":false,"telegram_username":null}`.
+- `POST /api/telegram/link` with `{"timezone":"Asia/Singapore"}` returns a one-time `https://t.me/<bot>?start=<code>` address, valid for 15 minutes. `DELETE /api/telegram` unlinks.
+
+All Telegram calls go through `app/services/telegram_api.py`; the bot's behaviour is in `app/services/telegram_bot.py`, and the loop that runs it in `app/services/telegram_runner.py`.

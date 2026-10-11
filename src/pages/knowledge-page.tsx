@@ -188,7 +188,7 @@ export function KnowledgePage() {
                   </div>
                   <p className={`mt-2 whitespace-pre-line text-sm leading-relaxed text-foreground/85 ${isExpanded ? "" : "line-clamp-3"}`}>{document.content}</p>
                   {document.content.length > 240 && (
-                    <button type="button" aria-expanded={isExpanded} onClick={() => setExpandedId(isExpanded ? null : document.id)} className="mt-1.5 rounded text-xs font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                    <button type="button" aria-expanded={isExpanded} onClick={() => setExpandedId(isExpanded ? null : document.id)} className="mt-1.5 rounded text-xs font-semibold text-primary link-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                       {isExpanded ? "Show less" : "Show all"}
                     </button>
                   )}

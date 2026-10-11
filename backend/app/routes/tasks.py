@@ -1,3 +1,5 @@
+import base64
+import binascii
 import uuid
 from datetime import datetime, timezone
 from typing import Annotated
@@ -15,6 +17,9 @@ from app.schemas.task import (
     DayPlanRequest,
     DayPlanResponse,
     DayPlanStepResponse,
+    DocumentTasksRequest,
+    DocumentTasksResponse,
+    TaskDraftResponse,
     TaskAvailabilityResponse,
     FamilyActivityResponse,
     TaskActivityResponse,
@@ -22,7 +27,7 @@ from app.schemas.task import (
     TaskCreateRequest,
     TaskResponse,
 )
-from app.services import assignment, day_plan
+from app.services import assignment, day_plan, document_tasks, recurrence
 from app.services.llm import LLMUnavailable
 from app.services.tasks import get_family_member, record_activity
 
@@ -56,6 +61,7 @@ def _task_response(task: Task) -> TaskResponse:
         recipient=task.recipient,
         created_at=task.created_at,
         completed_at=task.completed_at,
+        recurrence=task.recurrence,
         activity=[_activity_response(activity) for activity in task.activity],
     )
 
@@ -75,6 +81,9 @@ def _save(database: Session, task: Task) -> TaskResponse:
 
 @router.get("/tasks", response_model=list[TaskResponse])
 def list_tasks(family_access: FamilyMemberContext, database: DatabaseSession) -> list[TaskResponse]:
+    # A repeating task whose due time has passed gets its next occurrence here, the first time anyone looks.
+    if recurrence.catch_up(database, family_access.family.id):
+        database.commit()
     tasks = database.scalars(
         select(Task).where(Task.family_id == family_access.family.id).order_by(Task.created_at, Task.id)
     ).all()
@@ -106,11 +115,15 @@ def create_task(
         priority=payload.priority,
         recipient=payload.recipient.strip(),
         created_by_id=user.id,
+        recurrence=payload.recurrence,
     )
     database.add(task)
     record_activity(task, user.id, "Created", "Added to the household delegation board")
     if assignee is not None:
         record_activity(task, user.id, "Assigned", f"Assigned to {assignee.name}")
+    if payload.recurrence:
+        database.flush()
+        recurrence.start_series(task)
     return _save(database, task)
 
 
@@ -138,6 +151,8 @@ def assign_task(
         action = "Reassigned" if task.assignee_id is not None else "Assigned"
 
     task.assignee_id = payload.assignee_id
+    # A new assignee has not been reminded yet.
+    task.overdue_reminded_at = None
     record_activity(task, user.id, action, detail)
     return _save(database, task)
 
@@ -171,6 +186,35 @@ def suggest_task_assignee(
     return AssignmentSuggestionResponse(member_id=suggestion.member_id, reason=suggestion.reason, note_titles=suggestion.note_titles)
 
 
+@router.post("/tasks/from-document", response_model=DocumentTasksResponse)
+def draft_tasks_from_document(payload: DocumentTasksRequest, family_access: FamilyMemberContext) -> DocumentTasksResponse:
+    """Read an uploaded document or pasted text and draft tasks from it. Nothing is created or stored:
+    the person reviews each draft and creates the task themselves."""
+    try:
+        if payload.data_base64:
+            try:
+                data = base64.b64decode(payload.data_base64, validate=True)
+            except (binascii.Error, ValueError) as error:
+                raise document_tasks.DocumentError("That file could not be read. Try uploading it again.") from error
+            text, images = document_tasks.read_document(payload.filename, payload.content_type, data)
+        elif payload.text and payload.text.strip():
+            text, images = payload.text.strip()[: document_tasks.MAX_TEXT_CHARS], []
+        else:
+            raise document_tasks.DocumentError("Upload a file or paste the text of the letter or email.")
+        drafts = document_tasks.draft_tasks(text, images, datetime.now(timezone.utc), day_plan.resolve_timezone(payload.timezone))
+    except document_tasks.DocumentError as error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error)) from error
+    except LLMUnavailable as error:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(error)) from error
+    return DocumentTasksResponse(
+        summary=drafts.summary,
+        tasks=[
+            TaskDraftResponse(title=draft.title, detail=draft.detail, location=draft.location, due_date=draft.due_date, due_time=draft.due_time, priority=draft.priority)
+            for draft in drafts.tasks
+        ],
+    )
+
+
 @router.post("/day-plan", response_model=DayPlanResponse)
 def plan_my_day(payload: DayPlanRequest, family_access: FamilyMemberContext, user: AuthenticatedUser, database: DatabaseSession) -> DayPlanResponse:
     """Summarise the signed-in person's open tasks and suggest an order. Reuses the last plan while nothing has changed."""
@@ -195,6 +239,15 @@ def complete_task(task_id: uuid.UUID, family_access: FamilyMemberContext, user: 
     task.status = "Completed"
     task.completed_at = datetime.now(timezone.utc)
     record_activity(task, user.id, "Completed", "Marked this task complete")
+    recurrence.schedule_after(database, task)
+    return _save(database, task)
+
+
+@router.post("/tasks/{task_id}/stop-repeating", response_model=TaskResponse)
+def stop_repeating(task_id: uuid.UUID, family_access: FamilyMemberContext, database: DatabaseSession) -> TaskResponse:
+    """Stop a repeating task from creating further occurrences. The ones that already exist stay."""
+    task = _get_family_task(database, family_access.family.id, task_id)
+    recurrence.stop_series(database, task)
     return _save(database, task)
 
 
@@ -205,6 +258,7 @@ def reopen_task(task_id: uuid.UUID, family_access: FamilyMemberContext, user: Au
         return _task_response(task)
     task.status = "Open"
     task.completed_at = None
+    task.overdue_reminded_at = None
     record_activity(task, user.id, "Reopened", "Reopened this task")
     return _save(database, task)
 

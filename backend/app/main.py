@@ -13,6 +13,8 @@ from app.routes.families import router as families_router
 from app.routes.health import router as health_router
 from app.routes.knowledge import router as knowledge_router
 from app.routes.tasks import router as tasks_router
+from app.routes.telegram import router as telegram_router
+from app.services import telegram_runner
 from app.services.chroma_service import initialize_collection
 
 
@@ -21,7 +23,10 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     # Creates missing tables and adds columns introduced since the database file was made.
     initialize_database()
     initialize_collection()
+    # Does nothing unless TELEGRAM_BOT_TOKEN is set.
+    telegram_runner.start()
     yield
+    telegram_runner.stop()
 
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
@@ -41,3 +46,4 @@ app.include_router(knowledge_router)
 app.include_router(tasks_router)
 app.include_router(appointments_router)
 app.include_router(calendar_router)
+app.include_router(telegram_router)

@@ -1,5 +1,6 @@
 """The one place that talks to the language model. The API key stays on the server."""
 
+import base64
 import json
 import os
 from typing import Any
@@ -33,8 +34,27 @@ def _get_client() -> openai.OpenAI:
     return _client
 
 
-def generate_json(*, system: str, prompt: str, schema: dict[str, Any], schema_name: str = "answer") -> dict[str, Any]:
+def _user_content(prompt: str, images: list[tuple[str, bytes]] | None) -> str | list[dict[str, Any]]:
+    if not images:
+        return prompt
+    parts: list[dict[str, Any]] = [{"type": "text", "text": prompt}]
+    for media_type, data in images:
+        encoded = base64.b64encode(data).decode("ascii")
+        parts.append({"type": "image_url", "image_url": {"url": f"data:{media_type};base64,{encoded}"}})
+    return parts
+
+
+def generate_json(
+    *,
+    system: str,
+    prompt: str,
+    schema: dict[str, Any],
+    schema_name: str = "answer",
+    images: list[tuple[str, bytes]] | None = None,
+) -> dict[str, Any]:
     """Ask the model for an answer that matches `schema` and return it as a dict.
+
+    `images` are (media type, bytes) pairs, such as a photo of a letter, shown to the model alongside the prompt.
 
     `schema` must follow OpenAI's strict structured-output rules: every property listed in
     `required`, and `additionalProperties: false` on every object.
@@ -50,7 +70,7 @@ def generate_json(*, system: str, prompt: str, schema: dict[str, Any], schema_na
             max_completion_tokens=MAX_COMPLETION_TOKENS,
             messages=[
                 {"role": "system", "content": system},
-                {"role": "user", "content": prompt},
+                {"role": "user", "content": _user_content(prompt, images)},
             ],
             response_format={
                 "type": "json_schema",

@@ -30,6 +30,11 @@ class FamilyUpdateRequest(FamilyCreateRequest):
     pass
 
 
+class FamilyDeleteRequest(BaseModel):
+    # The family's name, typed out, so a family cannot be deleted by a stray click.
+    confirm_name: str = Field(max_length=120)
+
+
 class FamilyResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

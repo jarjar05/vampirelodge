@@ -124,7 +124,7 @@ export function DatePicker({
                 })}
               </div>
               <div className="mt-2 flex justify-end border-t border-border pt-2">
-                <button type="button" onClick={() => choose(today)} className="rounded px-2 py-1 text-xs font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Today</button>
+                <button type="button" onClick={() => choose(today)} className="rounded px-2 py-1 text-xs font-semibold text-primary link-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Today</button>
               </div>
             </>
           ) : (
@@ -160,7 +160,7 @@ export function DatePicker({
                 })}
               </div>
               <div className="mt-3 flex justify-end border-t border-border pt-2">
-                <button type="button" onClick={() => setView("days")} className="rounded px-2 py-1 text-xs font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Back to days</button>
+                <button type="button" onClick={() => setView("days")} className="rounded px-2 py-1 text-xs font-semibold text-primary link-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Back to days</button>
               </div>
             </>
           )}

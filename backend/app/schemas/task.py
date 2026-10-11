@@ -1,11 +1,12 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime, time
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 TaskCategory = Literal["Appointment", "Medication", "Check-in"]
 TaskPriority = Literal["High", "Normal", "Low"]
+TaskRecurrence = Literal["daily", "weekly", "biweekly", "monthly"]
 
 
 class TaskCreateRequest(BaseModel):
@@ -17,6 +18,14 @@ class TaskCreateRequest(BaseModel):
     priority: TaskPriority = "Normal"
     recipient: str = Field(default="Shared household", min_length=1, max_length=80)
     assignee_id: uuid.UUID | None = None
+    # A repeating task needs a due time to count from.
+    recurrence: TaskRecurrence | None = None
+
+    @model_validator(mode="after")
+    def recurrence_needs_a_due_time(self) -> "TaskCreateRequest":
+        if self.recurrence is not None and self.due_at is None:
+            raise ValueError("A repeating task needs a due date")
+        return self
 
     @field_validator("title")
     @classmethod
@@ -58,6 +67,7 @@ class TaskResponse(BaseModel):
     recipient: str
     created_at: datetime
     completed_at: datetime | None
+    recurrence: TaskRecurrence | None
     activity: list[TaskActivityResponse]
 
 
@@ -66,6 +76,32 @@ class AssignmentSuggestionResponse(BaseModel):
     reason: str
     # Titles of the family notes that were given to the model for this suggestion.
     note_titles: list[str]
+
+
+class DocumentTasksRequest(BaseModel):
+    """A document to draft tasks from: either an uploaded file, base64-encoded, or pasted text."""
+
+    filename: str | None = Field(default=None, max_length=255)
+    content_type: str | None = Field(default=None, max_length=120)
+    # About 5 MB once decoded.
+    data_base64: str | None = Field(default=None, max_length=7_000_000)
+    text: str | None = Field(default=None, max_length=50_000)
+    timezone: str | None = Field(default=None, max_length=64)
+
+
+class TaskDraftResponse(BaseModel):
+    title: str
+    detail: str
+    location: str | None
+    # Local date and clock time as written in the document; either may be missing.
+    due_date: date | None
+    due_time: time | None
+    priority: TaskPriority
+
+
+class DocumentTasksResponse(BaseModel):
+    summary: str
+    tasks: list[TaskDraftResponse]
 
 
 class TaskAvailabilityResponse(BaseModel):

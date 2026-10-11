@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { RefreshCw, Sparkles } from "lucide-react";
+import { ArrowRight, RefreshCw, Sparkles } from "lucide-react";
+import { Link } from "react-router-dom";
 import { careApi } from "@/api/care";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -97,10 +98,21 @@ export function DayPlanCard({ tasks }: { tasks: readonly CareTask[] }) {
           </div>
         )}
         {state.status === "unavailable" && (
-          <p className="text-sm text-muted-foreground">
-            {state.message}{" "}
-            <button type="button" onClick={() => setRequest((current) => ({ ...current, attempt: current.attempt + 1 }))} className="rounded font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Try again</button>
-          </p>
+          <>
+            <p className="text-sm text-muted-foreground">
+              {state.message}{" "}
+              <button type="button" onClick={() => setRequest((current) => ({ ...current, attempt: current.attempt + 1 }))} className="rounded font-semibold text-primary link-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Try again</button>
+            </p>
+            {/* Without a plan, my tasks are still listed, soonest first. */}
+            <ul className="mt-3 divide-y divide-border">
+              {[...tasks].sort((first, second) => (first.dueAt ?? "9999").localeCompare(second.dueAt ?? "9999")).map((task) => (
+                <li key={task.id} className="flex items-center justify-between gap-4 py-3">
+                  <p className="min-w-0 truncate text-sm font-semibold">{task.title}</p>
+                  <span className={`shrink-0 whitespace-nowrap text-xs font-medium ${task.attention === "Overdue" ? "text-alert" : "text-muted-foreground"}`}>{task.time}</span>
+                </li>
+              ))}
+            </ul>
+          </>
         )}
         {state.status === "ready" && (
           <>
@@ -108,7 +120,7 @@ export function DayPlanCard({ tasks }: { tasks: readonly CareTask[] }) {
             {steps.length > 0 && (
               <>
                 <h3 className="mt-4 text-xs font-semibold uppercase tracking-[0.1em] text-primary">Suggested order</h3>
-                <ol className="mt-2 space-y-3">
+                <ol className="stagger mt-2 space-y-3">
                   {steps.map(({ task, note }, index) => (
                     <li key={task.id} className="flex gap-3">
                       <span aria-hidden="true" className="grid size-6 shrink-0 place-items-center rounded-full bg-primary/10 text-xs font-semibold text-primary">{index + 1}</span>
@@ -127,6 +139,9 @@ export function DayPlanCard({ tasks }: { tasks: readonly CareTask[] }) {
             {state.plan.generatedAt && <p className="mt-4 text-xs text-muted-foreground">A suggestion only · updated {formatRelative(state.plan.generatedAt).toLowerCase()}</p>}
           </>
         )}
+        <Link to="/tasks?filter=My%20Tasks" className="mt-4 inline-flex items-center gap-1 rounded-md text-sm font-semibold text-primary link-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          All my tasks<ArrowRight size={15} aria-hidden="true" />
+        </Link>
       </CardContent>
     </Card>
   );

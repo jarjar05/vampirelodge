@@ -41,6 +41,13 @@ class Task(Base):
     created_by_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False, server_default=func.now())
     completed_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    # How often the task repeats: "daily", "weekly", "biweekly" or "monthly". None for a one-off task.
+    recurrence: Mapped[str | None] = mapped_column(String(12), nullable=True)
+    # Shared by every occurrence of a repeating task; equal to the id of the first one.
+    series_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True, index=True)
+    # When the assignee was reminded that this task is overdue. Cleared when the task is reassigned or reopened,
+    # so the reminder is sent once per person per time the task falls due.
+    overdue_reminded_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
 
     activity: Mapped[list["TaskActivity"]] = relationship(
         back_populates="task",

@@ -52,6 +52,10 @@
   --warning: 42 100% 88%;
   --warning-foreground: 34 92% 30%;
   --alert: 10 82% 43%;
+
+  /* The two motion curves used everywhere: a soft landing, and a slight overshoot for small playful moments. */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 * {
@@ -83,9 +87,9 @@ button {
 /* Press feedback: anything clickable dips slightly while held and springs back on release. */
 button,
 a {
-  transition-property: color, background-color, border-color, box-shadow, opacity, scale, translate, filter;
-  transition-duration: 0.16s;
-  transition-timing-function: cubic-bezier(0.3, 0.7, 0.3, 1);
+  transition-property: color, background-color, border-color, box-shadow, opacity, scale, translate, filter, background-size;
+  transition-duration: 0.25s;
+  transition-timing-function: var(--ease-out);
 }
 
 button:not(:disabled):active,
@@ -96,8 +100,8 @@ a:active {
 /* Scroll reveal, driven by the useReveal hook. */
 .reveal {
   opacity: 0;
-  translate: 0 14px;
-  transition: opacity 0.55s ease, translate 0.55s cubic-bezier(0.2, 0.7, 0.2, 1);
+  translate: 0 18px;
+  transition: opacity 0.8s var(--ease-out), translate 0.8s var(--ease-out);
   transition-delay: var(--reveal-delay, 0ms);
 }
 
@@ -105,6 +109,288 @@ a:active {
   opacity: 1;
   /* "none" rather than "0 0", so a revealed element stops being a positioning container. */
   translate: none;
+}
+
+/* Rows inside a revealed card arrive one after another. Put "stagger" on the list; the card's reveal starts it. */
+.stagger > * {
+  transition: opacity 0.6s var(--ease-out), translate 0.6s var(--ease-out);
+  transition-delay: calc(120ms + var(--stagger-index, 10) * 55ms);
+}
+.reveal:not(.is-visible) .stagger > * {
+  opacity: 0;
+  translate: 0 14px;
+}
+.stagger > :nth-child(1) { --stagger-index: 0; }
+.stagger > :nth-child(2) { --stagger-index: 1; }
+.stagger > :nth-child(3) { --stagger-index: 2; }
+.stagger > :nth-child(4) { --stagger-index: 3; }
+.stagger > :nth-child(5) { --stagger-index: 4; }
+.stagger > :nth-child(6) { --stagger-index: 5; }
+.stagger > :nth-child(7) { --stagger-index: 6; }
+.stagger > :nth-child(8) { --stagger-index: 7; }
+.stagger > :nth-child(9) { --stagger-index: 8; }
+.stagger > :nth-child(10) { --stagger-index: 9; }
+
+/* Progress bars grow from the left when their card is revealed. */
+.bar-fill {
+  transform-origin: 0 50%;
+  /* The width change is what moves a bar when its number changes, for example on switching the period. */
+  transition: transform 1.2s var(--ease-out) 0.2s, width 0.7s var(--ease-out);
+}
+.reveal:not(.is-visible) .bar-fill {
+  transform: scaleX(0);
+}
+
+/* The arrow on a link or button slides forward on hover. */
+:is(a, button) svg.lucide-arrow-right {
+  transition: translate 0.35s var(--ease-spring);
+}
+:is(a, button):not(:disabled):hover svg.lucide-arrow-right {
+  translate: 4px 0;
+}
+
+/* In the components layer, so a Tailwind utility on the same element still wins. */
+@layer components {
+  /* Outlined buttons fill with the brand colour from the left. */
+  .btn-wipe {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+  }
+  .btn-wipe::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: hsl(var(--primary));
+    transform: scaleX(0);
+    transform-origin: 0 50%;
+    transition: transform 0.45s var(--ease-out);
+  }
+  .btn-wipe:not(:disabled):hover::before {
+    transform: scaleX(1);
+  }
+
+  /* A clickable card rises with a soft shadow. */
+
+  /* An underline that draws in from the left and leaves to the right. */
+  .link-underline {
+    background: linear-gradient(currentColor, currentColor) 100% 100% / 0 1.5px no-repeat;
+    padding-bottom: 2px;
+  }
+  .link-underline:hover,
+  .link-underline:focus-visible {
+    background-size: 100% 1.5px;
+    background-position: 0 100%;
+  }
+
+  /* Ticking off a task: the circle pops, the tick draws itself, and the title is struck through. */
+  .task-check svg path {
+    stroke-dasharray: 24;
+    stroke-dashoffset: 24;
+    transition: stroke-dashoffset 0.3s var(--ease-out) 0.08s;
+  }
+  .task-check[aria-pressed="true"] {
+    scale: 1.12;
+  }
+  .task-check[aria-pressed="true"] svg path {
+    stroke-dashoffset: 0;
+  }
+  .task-title {
+    background: linear-gradient(currentColor, currentColor) 0 55% / 0 1.5px no-repeat;
+  }
+
+  /* Side menu: one highlight glides between items instead of each lighting up. */
+  .nav-pill {
+    transition: translate 0.45s var(--ease-out), height 0.45s var(--ease-out), opacity 0.3s;
+  }
+
+  /* Sign-in fields: the label sits inside the box and lifts when the field is focused or filled. */
+  .float-field label {
+    transform-origin: 0 0;
+    transition: transform 0.3s var(--ease-out), color 0.3s;
+  }
+  .float-field input {
+    transition: border-color 0.25s, box-shadow 0.35s var(--ease-out), background-color 0.25s;
+  }
+
+  /* Sign-in button: label, then a spinner, then a tick, changing shape as it goes. */
+  .submit-morph {
+    position: relative;
+    height: 2.75rem;
+    width: 100%;
+    overflow: hidden;
+    border-radius: 0.75rem;
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+  .submit-morph:hover {
+    translate: 0 -2px;
+    box-shadow: 0 12px 26px -12px hsl(var(--primary) / 0.7);
+  }
+  .submit-morph > span {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    transition: opacity 0.25s, scale 0.35s var(--ease-out);
+  }
+  .submit-morph .submit-spinner,
+  .submit-morph .submit-tick {
+    opacity: 0;
+    scale: 0.6;
+  }
+  .submit-morph .submit-spinner::after {
+    content: "";
+    width: 1.25rem;
+    height: 1.25rem;
+    border-radius: 50%;
+    border: 2.5px solid hsl(0 0% 100% / 0.35);
+    border-top-color: #fff;
+    animation: spin 0.7s linear infinite;
+  }
+  .submit-morph .submit-tick path {
+    stroke-dasharray: 26;
+    stroke-dashoffset: 26;
+  }
+  .submit-morph:not([data-state="idle"]) {
+    width: 2.75rem;
+    border-radius: 1.375rem;
+    pointer-events: none;
+    translate: none;
+  }
+  .submit-morph:not([data-state="idle"]) .submit-text {
+    opacity: 0;
+    scale: 0.8;
+  }
+  .submit-morph[data-state="loading"] .submit-spinner,
+  .submit-morph[data-state="done"] .submit-tick {
+    opacity: 1;
+    scale: 1;
+  }
+  .submit-morph[data-state="done"] .submit-tick path {
+    stroke-dashoffset: 0;
+    transition: stroke-dashoffset 0.4s var(--ease-out) 0.1s;
+  }
+}
+
+/* Timings for the buttons and links above. They sit outside the layer because the plain "button, a" rule
+   near the top of this file would otherwise override anything inside one. */
+.card-lift { transition: translate 0.4s var(--ease-out), box-shadow 0.4s var(--ease-out), border-color 0.4s; }
+.task-check { transition: background-color 0.25s, border-color 0.25s, scale 0.35s var(--ease-spring); }
+.task-title { transition: background-size 0.4s var(--ease-out), color 0.4s; }
+.submit-morph { transition: width 0.5s var(--ease-out), border-radius 0.5s var(--ease-out), box-shadow 0.3s, translate 0.3s var(--ease-out), scale 0.2s var(--ease-out); }
+
+/* Hover, focus and done states that change a colour a Tailwind class also sets. Outside the layer so they win. */
+.btn-wipe:not(:disabled):hover {
+  border-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+.card-lift:hover {
+  translate: 0 -5px;
+  border-color: hsl(var(--primary) / 0.35);
+  box-shadow: 0 24px 46px -24px hsl(var(--foreground) / 0.4);
+}
+.float-field input:focus + label,
+.float-field input:not(:placeholder-shown) + label,
+.float-field input:-webkit-autofill + label {
+  transform: translateY(-10px) scale(0.76);
+  color: hsl(var(--primary));
+}
+.float-field input:focus {
+  border-color: hsl(var(--primary));
+  background-color: hsl(var(--card));
+  box-shadow: 0 0 0 4px hsl(var(--primary) / 0.14);
+}
+.task-title[data-done="true"] {
+  background-size: 100% 1.5px;
+  color: hsl(var(--muted-foreground));
+}
+
+/* Profile picture buttons: the picture swells slightly and gains a soft ring on hover and while its menu is open. */
+.avatar-button { border-radius: 9999px; transition: scale 0.35s var(--ease-spring), box-shadow 0.3s var(--ease-out); }
+.avatar-button:hover,
+.avatar-button[aria-expanded="true"] {
+  scale: 1.1;
+  box-shadow: 0 0 0 4px hsl(var(--primary) / 0.16), 0 10px 20px -10px hsl(var(--primary) / 0.6);
+}
+.profile-chip { transition: background-color 0.3s, translate 0.3s var(--ease-out); }
+.profile-chip:hover { background-color: hsl(var(--muted) / 0.8); }
+.profile-chip .profile-chip-avatar { border-radius: 9999px; transition: scale 0.35s var(--ease-spring), box-shadow 0.3s var(--ease-out); }
+.profile-chip:hover .profile-chip-avatar {
+  scale: 1.1;
+  box-shadow: 0 0 0 4px hsl(var(--primary) / 0.16), 0 10px 20px -10px hsl(var(--primary) / 0.6);
+}
+.profile-chip .profile-chip-cog { opacity: 0; translate: -4px 0; transition: opacity 0.3s, translate 0.3s var(--ease-out), rotate 0.6s var(--ease-out); }
+.profile-chip:hover .profile-chip-cog,
+.profile-chip:focus-visible .profile-chip-cog { opacity: 1; translate: none; rotate: 60deg; }
+
+/* Dropdown menus open from their top-right corner. */
+.menu-pop {
+  transform-origin: 100% 0;
+  animation: pop-in 0.28s var(--ease-out) both;
+}
+/* Text that replaces other text, such as a new leader in the task history, rises into place. */
+.swap-in {
+  animation: rise 0.45s var(--ease-out) both;
+}
+/* The highlight behind the chosen option of a switch slides across. */
+.segment-thumb { transition: translate 0.4s var(--ease-out); }
+
+/* Sign-in page: slow washes of colour drifting behind the card. */
+.login-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(70px);
+  pointer-events: none;
+  animation: blob-in 1.6s ease both, drift-a 22s ease-in-out infinite alternate;
+}
+.login-blob.one { width: 32rem; height: 32rem; right: -9rem; top: -10rem; background: hsl(var(--primary) / 0.22); }
+.login-blob.two { width: 29rem; height: 29rem; left: -10rem; bottom: -10rem; background: hsl(var(--accent-foreground) / 0.16); animation-name: blob-in, drift-b; animation-duration: 1.6s, 26s; }
+.login-blob.three { width: 22rem; height: 22rem; left: 34%; top: -11rem; background: hsl(var(--secondary-foreground) / 0.13); animation-duration: 1.6s, 30s; animation-direction: normal, alternate-reverse; }
+
+/* Sign-in page: the heading, the card and the footer arrive in order. */
+.enter-rise {
+  animation: rise 0.7s var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 80ms);
+}
+.enter-card {
+  animation: card-in 0.9s var(--ease-out) both;
+  animation-delay: 0.2s;
+}
+/* After a successful sign-in the page lifts away before the app appears. */
+.login-leaving {
+  opacity: 0;
+  translate: 0 -28px;
+  scale: 0.96;
+  filter: blur(4px);
+  transition: opacity 0.45s ease, translate 0.6s var(--ease-out), scale 0.6s var(--ease-out), filter 0.45s ease;
+}
+.shake {
+  animation: shake 0.45s var(--ease-out);
+}
+
+/* The app builds itself when it first appears: menu from the side, bar from the top, page from below. */
+.app-enter-side { animation: side-in 0.8s var(--ease-out) both; }
+.app-enter-top { animation: top-in 0.7s var(--ease-out) 0.08s both; }
+.app-enter-main { animation: rise 0.8s var(--ease-out) 0.16s both; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes blob-in { from { opacity: 0; } }
+@keyframes drift-a { to { transform: translate(-60px, 50px) scale(1.12); } }
+@keyframes drift-b { to { transform: translate(70px, -40px) scale(1.08); } }
+@keyframes rise { from { opacity: 0; translate: 0 14px; } }
+@keyframes pop-in { from { opacity: 0; scale: 0.94; translate: 0 -6px; } }
+@keyframes card-in { from { opacity: 0; translate: 0 24px; scale: 0.97; filter: blur(6px); } }
+@keyframes side-in { from { opacity: 0; translate: -18px 0; } }
+@keyframes top-in { from { opacity: 0; translate: 0 -14px; } }
+@keyframes shake {
+  20% { translate: -9px 0; }
+  40% { translate: 7px 0; }
+  60% { translate: -5px 0; }
+  80% { translate: 3px 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -117,6 +403,17 @@ a:active {
   button:not(:disabled):active,
   a:active {
     scale: 1;
+  }
+
+  /* Everything else jumps straight to its end state. */
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
   }
 }
 

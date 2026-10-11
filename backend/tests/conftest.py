@@ -7,6 +7,8 @@ from pathlib import Path
 _TEST_DIR = Path(tempfile.mkdtemp(prefix="family-care-tests-"))
 os.environ["DATABASE_URL"] = f"sqlite:///{_TEST_DIR / 'test.db'}"
 os.environ["CHROMA_PERSIST_DIR"] = str(_TEST_DIR / "chroma")
+# Tests never talk to the real bot, even when backend/.env holds a token.
+os.environ["TELEGRAM_BOT_TOKEN"] = ""
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402

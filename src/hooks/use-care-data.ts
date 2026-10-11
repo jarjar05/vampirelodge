@@ -95,7 +95,12 @@ export function useCareData() {
   }, [refreshActivity]);
 
   const taskAction = (action: "complete" | "reopen") => (taskId: string) =>
-    run(async () => applyTask(await careApi.taskAction(taskId, action)));
+    run(async () => {
+      const updated = await careApi.taskAction(taskId, action);
+      applyTask(updated);
+      // Completing a repeating task creates its next occurrence on the server, so fetch the list again to show it.
+      if (action === "complete" && updated.recurrence) setRawTasks(await careApi.listTasks());
+    });
 
   return {
     status,
@@ -111,6 +116,17 @@ export function useCareData() {
 
     createFamily: (name: string) => run(async () => { await careApi.createFamily(name); await reload(); }),
     joinFamily: (inviteCode: string) => run(async () => { await careApi.joinFamily(inviteCode); await reload(); }),
+    /** Resolves to true once the family is gone; the app then shows the create-or-join screen. */
+    deleteFamily: (confirmName: string) => run(async () => {
+      await careApi.deleteFamily(confirmName);
+      setFamily(null);
+      setRawMembers([]);
+      setRawTasks([]);
+      setRawAppointments([]);
+      setRawActivity([]);
+      setStatus("no-family");
+      return true;
+    }),
     renameFamily: (name: string) => run(async () => setFamily(await careApi.renameFamily(name))),
     updateMember: (userId: string, changes: MemberChanges) => run(async () => {
       const updated = await careApi.updateMember(userId, changes);
@@ -126,6 +142,7 @@ export function useCareData() {
       return toTask(created, membersById);
     }),
     assignTask: (taskId: string, assigneeId: string | null) => run(async () => applyTask(await careApi.assignTask(taskId, assigneeId))),
+    stopRepeating: (taskId: string) => run(async () => { await careApi.stopRepeating(taskId); setRawTasks(await careApi.listTasks()); }),
     completeTask: taskAction("complete"),
     reopenTask: taskAction("reopen"),
 
