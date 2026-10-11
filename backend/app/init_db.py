@@ -28,10 +28,17 @@ def _add_missing_columns() -> None:
                     index.create(bind=connection)
 
 
+def _retire_in_progress_status() -> None:
+    """Tasks no longer need accepting, so ones left "In progress" by the old accept step become plain open tasks."""
+    with engine.begin() as connection:
+        connection.execute(text("UPDATE tasks SET status = 'Open' WHERE status = 'In progress'"))
+
+
 def initialize_database() -> None:
     """Create tables declared by the application's SQLAlchemy models."""
     Base.metadata.create_all(bind=engine)
     _add_missing_columns()
+    _retire_in_progress_status()
 
 
 if __name__ == "__main__":

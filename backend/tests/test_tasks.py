@@ -22,10 +22,10 @@ def test_task_lifecycle_records_activity(family):
     task = admin.post(f"/api/families/me/tasks/{task['id']}/assign", json={"assignee_id": member.user_id}).json()
     assert task["assignee_id"] == member.user_id
 
-    # Only the assignee may accept or decline.
-    assert admin.post(f"/api/families/me/tasks/{task['id']}/accept").status_code == 403
-    task = member.post(f"/api/families/me/tasks/{task['id']}/accept").json()
-    assert task["status"] == "In progress"
+    # Being assigned is enough: there is no separate step to accept or decline.
+    assert task["status"] == "Open"
+    for removed in ("accept", "decline"):
+        assert member.post(f"/api/families/me/tasks/{task['id']}/{removed}").status_code == 404
 
     task = admin.post(f"/api/families/me/tasks/{task['id']}/complete").json()
     assert task["status"] == "Completed"
@@ -36,26 +36,44 @@ def test_task_lifecycle_records_activity(family):
     assert task["completed_at"] is None
 
     actions = [item["action"] for item in task["activity"]]
-    assert actions == ["Created", "Assigned", "Accepted", "Completed", "Reopened"]
-    assert task["activity"][2]["actor_name"] == "Ben"
+    assert actions == ["Created", "Assigned", "Completed", "Reopened"]
+    assert task["activity"][1]["actor_name"] == "Alice"
 
 
-def test_reassigning_resets_acceptance(family):
+def test_reassigning_and_unassigning(family):
     admin, member = family
     task = _create_task(admin, assignee_id=member.user_id)
-    member.post(f"/api/families/me/tasks/{task['id']}/accept")
 
     task = admin.post(f"/api/families/me/tasks/{task['id']}/assign", json={"assignee_id": admin.user_id}).json()
-    assert task["status"] == "Open"
+    assert task["status"] == "Open" and task["assignee_id"] == admin.user_id
     assert task["activity"][-1]["action"] == "Reassigned"
 
+    # Anyone in the family, including the assignee, can hand a task back.
+    task = admin.post(f"/api/families/me/tasks/{task['id']}/assign", json={"assignee_id": None}).json()
+    assert task["assignee_id"] is None and task["status"] == "Open"
 
-def test_decline_returns_task_to_unassigned(family):
+    # Reassigning a finished task does not reopen it.
+    admin.post(f"/api/families/me/tasks/{task['id']}/complete")
+    task = admin.post(f"/api/families/me/tasks/{task['id']}/assign", json={"assignee_id": member.user_id}).json()
+    assert task["status"] == "Completed"
+
+
+def test_tasks_left_in_progress_by_the_old_accept_step_become_open(family):
+    from sqlalchemy import text
+
+    from app.database import engine
+    from app.init_db import initialize_database
+
     admin, member = family
     task = _create_task(admin, assignee_id=member.user_id)
-    task = member.post(f"/api/families/me/tasks/{task['id']}/decline").json()
-    assert task["assignee_id"] is None
-    assert task["status"] == "Open"
+    done = _create_task(admin, title="Done already")
+    admin.post(f"/api/families/me/tasks/{done['id']}/complete")
+    with engine.begin() as connection:
+        connection.execute(text("UPDATE tasks SET status = 'In progress' WHERE title = 'Pick up medication'"))
+
+    initialize_database()
+    statuses = {item["id"]: item["status"] for item in admin.get("/api/families/me/tasks").json()}
+    assert statuses == {task["id"]: "Open", done["id"]: "Completed"}
 
 
 def test_cannot_assign_to_someone_outside_the_family(family, login):
@@ -75,7 +93,7 @@ def test_other_families_cannot_see_or_change_tasks(family, login):
     outsider.post("/api/families", json={"name": "Other Family"})
     assert outsider.get("/api/families/me/tasks").json() == []
     assert outsider.get("/api/families/me/activity").json() == []
-    for action in ("complete", "reopen", "accept", "decline"):
+    for action in ("complete", "reopen"):
         assert outsider.post(f"/api/families/me/tasks/{task['id']}/{action}").status_code == 404
     response = outsider.post(f"/api/families/me/tasks/{task['id']}/assign", json={"assignee_id": outsider.user_id})
     assert response.status_code == 404

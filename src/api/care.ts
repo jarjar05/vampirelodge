@@ -1,12 +1,17 @@
 import { api } from "@/api/client";
 import { formatClock, formatDay, formatDue, formatRelative, formatTimestamp } from "@/lib/dates";
 import type {
+  AssignmentSuggestion,
+  CalendarStatus,
+  DayPlan,
   Availability,
   CareAppointment,
   CareTask,
   Family,
   FamilyActivityItem,
   FamilyMember,
+  KnowledgeDocument,
+  KnowledgeSearchResult,
   TaskActivity,
   TaskActivityAction,
 } from "@/types/care";
@@ -61,9 +66,46 @@ export type ApiAppointment = {
 
 export type ApiFamilyActivity = ApiActivity & { task_id: string; task_title: string };
 
+type ApiKnowledgeDocument = {
+  id: string;
+  title: string;
+  category: string;
+  content: string;
+  chunk_count: number;
+  created_by_name: string | null;
+  created_at: string;
+};
+
+type ApiKnowledgeSearchResult = { id: string; document_id: string; title: string; content: string };
+
+export type NewKnowledgeDocument = { title: string; category: string; content: string };
+
+function toKnowledgeDocument(document: ApiKnowledgeDocument): KnowledgeDocument {
+  return {
+    id: document.id,
+    title: document.title,
+    category: document.category,
+    content: document.content,
+    chunkCount: document.chunk_count,
+    addedBy: document.created_by_name ?? undefined,
+    addedAt: formatTimestamp(document.created_at),
+  };
+}
+
 export type NewTask = { title: string; detail: string; location?: string; dueAt: string; priority: CareTask["priority"] };
 export type NewAppointment = { title: string; place?: string; startsAt: string; attendeeId: string | null };
 export type MemberChanges = { relationshipLabel?: string | null; availability?: Availability; availabilityNote?: string | null };
+
+type ApiCalendarStatus = { connected: boolean; synced_at: string | null; event_count: number | null; error: string | null };
+
+function toCalendarStatus(status: ApiCalendarStatus): CalendarStatus {
+  return { connected: status.connected, syncedAt: status.synced_at, eventCount: status.event_count, error: status.error };
+}
+
+/** The browser's time zone name, e.g. "Asia/Singapore", so the AI is given times as the person sees them. */
+function localTimeZone() {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
 
 export const careApi = {
   getFamily: () => api<ApiFamily>("/families/me"),
@@ -90,9 +132,42 @@ export const careApi = {
     method: "POST",
     body: { assignee_id: assigneeId },
   }),
-  taskAction: (taskId: string, action: "accept" | "decline" | "complete" | "reopen") =>
+  taskAction: (taskId: string, action: "complete" | "reopen") =>
     api<ApiTask>(`/families/me/tasks/${taskId}/${action}`, { method: "POST" }),
   listActivity: () => api<ApiFamilyActivity[]>("/families/me/activity?limit=20"),
+  /** Ids of members with an appointment or calendar event within an hour of the task's due time. No AI call is made. */
+  busyMembersForTask: async (taskId: string): Promise<string[]> =>
+    (await api<{ busy_member_ids: string[] }>(`/families/me/tasks/${taskId}/availability?timezone=${encodeURIComponent(localTimeZone())}`)).busy_member_ids,
+  /** Asks the language model who should take the task. Rejects when AI is not set up or the call fails. */
+  suggestAssignee: async (taskId: string): Promise<AssignmentSuggestion> => {
+    const suggestion = await api<{ member_id: string; reason: string; note_titles: string[] }>(`/families/me/tasks/${taskId}/suggestion?timezone=${encodeURIComponent(localTimeZone())}`, { method: "POST" });
+    return { memberId: suggestion.member_id, reason: suggestion.reason, noteTitles: suggestion.note_titles };
+  },
+  /** Summarises my open tasks and suggests an order. The server reuses its last answer until my tasks change. */
+  planMyDay: async (refresh = false): Promise<DayPlan> => {
+    const plan = await api<{ summary: string | null; steps: { task_id: string; note: string }[]; generated_at: string | null }>("/families/me/day-plan", {
+      method: "POST",
+      body: { timezone: localTimeZone(), refresh },
+    });
+    return { summary: plan.summary, steps: plan.steps.map((step) => ({ taskId: step.task_id, note: step.note })), generatedAt: plan.generated_at };
+  },
+
+  calendarStatus: async () => toCalendarStatus(await api<ApiCalendarStatus>("/calendar")),
+  /** Rejects with a readable message when the link cannot be read as a calendar. */
+  linkCalendar: async (url: string) => toCalendarStatus(await api<ApiCalendarStatus>("/calendar", { method: "PUT", body: { url } })),
+  syncCalendar: async () => toCalendarStatus(await api<ApiCalendarStatus>("/calendar/sync", { method: "POST" })),
+  unlinkCalendar: async (): Promise<CalendarStatus> => {
+    await api("/calendar", { method: "DELETE" });
+    return { connected: false, syncedAt: null, eventCount: null, error: null };
+  },
+
+  listKnowledge: async () => (await api<ApiKnowledgeDocument[]>("/families/me/knowledge")).map(toKnowledgeDocument),
+  addKnowledge: async (document: NewKnowledgeDocument) =>
+    toKnowledgeDocument(await api<ApiKnowledgeDocument>("/families/me/knowledge", { method: "POST", body: document })),
+  deleteKnowledge: (documentId: string) => api(`/families/me/knowledge/${documentId}`, { method: "DELETE" }),
+  searchKnowledge: async (query: string): Promise<KnowledgeSearchResult[]> =>
+    (await api<ApiKnowledgeSearchResult[]>(`/families/me/knowledge/search?limit=5&query=${encodeURIComponent(query)}`))
+      .map((result) => ({ id: result.id, documentId: result.document_id, title: result.title, content: result.content })),
 
   listAppointments: () => api<ApiAppointment[]>("/families/me/appointments"),
   createAppointment: (appointment: NewAppointment) => api<ApiAppointment>("/families/me/appointments", {

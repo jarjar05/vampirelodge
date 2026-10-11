@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "r
 import { careApi } from "@/api/care";
 import { api } from "@/api/client";
 import type { AuthUser } from "@/components/auth/login-page";
+import { CalendarLink } from "@/components/calendar-link";
 import { FamilyAvatar } from "@/components/family-avatar";
 import { PhoneInput } from "@/components/phone-input";
 import { Button } from "@/components/ui/button";
@@ -193,6 +194,8 @@ export function ProfileSettingsDialog({
             )}
           </div>
         </fieldset>
+
+        <CalendarLink />
 
         {errorMessage && <p role="alert" className="mt-4 rounded-lg bg-alert/10 px-3 py-2 text-sm text-alert">{errorMessage}</p>}
 

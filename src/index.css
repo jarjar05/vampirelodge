@@ -31,26 +31,27 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
-  --background: 36 33% 97%;
-  --foreground: 28 19% 13%;
+  /* Warm paper background with a deeper green, a livelier coral and a richer gold. */
+  --background: 38 50% 97%;
+  --foreground: 28 24% 12%;
   --card: 0 0% 100%;
-  --primary: 147 24% 40%;
+  --primary: 152 46% 33%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 43 96% 92%;
-  --secondary-foreground: 39 77% 41%;
-  --muted: 28 35% 94%;
-  --muted-foreground: 28 7% 43%;
-  --accent: 15 80% 95%;
-  --accent-foreground: 15 67% 56%;
-  --border: 30 33% 91%;
-  --input: 30 19% 81%;
-  --ring: 147 24% 40%;
+  --secondary: 42 100% 88%;
+  --secondary-foreground: 34 92% 30%;
+  --muted: 34 42% 93%;
+  --muted-foreground: 28 9% 40%;
+  --accent: 14 95% 93%;
+  --accent-foreground: 12 80% 42%;
+  --border: 32 36% 88%;
+  --input: 30 22% 78%;
+  --ring: 152 46% 33%;
   --sidebar: 0 0% 100%;
-  --success: 140 34% 91%;
-  --success-foreground: 147 45% 27%;
-  --warning: 43 96% 92%;
-  --warning-foreground: 39 77% 41%;
-  --alert: 15 67% 56%;
+  --success: 146 50% 89%;
+  --success-foreground: 152 55% 24%;
+  --warning: 42 100% 88%;
+  --warning-foreground: 34 92% 30%;
+  --alert: 10 82% 43%;
 }
 
 * {
@@ -65,8 +66,58 @@ body {
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
+/* Page background: soft washes of the brand green and coral over the paper colour. */
+.app-backdrop {
+  background:
+    radial-gradient(52rem 34rem at 108% -8%, hsl(var(--primary) / 0.13), transparent 62%),
+    radial-gradient(44rem 30rem at -12% 104%, hsl(var(--accent-foreground) / 0.1), transparent 60%),
+    radial-gradient(36rem 26rem at 38% -18%, hsl(var(--secondary-foreground) / 0.07), transparent 60%),
+    hsl(var(--background));
+  background-attachment: fixed;
+}
+
 button {
   cursor: pointer;
+}
+
+/* Press feedback: anything clickable dips slightly while held and springs back on release. */
+button,
+a {
+  transition-property: color, background-color, border-color, box-shadow, opacity, scale, translate, filter;
+  transition-duration: 0.16s;
+  transition-timing-function: cubic-bezier(0.3, 0.7, 0.3, 1);
+}
+
+button:not(:disabled):active,
+a:active {
+  scale: 0.96;
+}
+
+/* Scroll reveal, driven by the useReveal hook. */
+.reveal {
+  opacity: 0;
+  translate: 0 14px;
+  transition: opacity 0.55s ease, translate 0.55s cubic-bezier(0.2, 0.7, 0.2, 1);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+
+.reveal.is-visible {
+  opacity: 1;
+  /* "none" rather than "0 0", so a revealed element stops being a positioning container. */
+  translate: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    translate: none;
+    transition: none;
+  }
+
+  button:not(:disabled):active,
+  a:active {
+    scale: 1;
+  }
 }
 
 .sidebar {

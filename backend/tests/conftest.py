@@ -15,6 +15,7 @@ from app.config import settings  # noqa: E402
 from app.database import Base, SessionLocal, engine  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models import User  # noqa: E402
+from app.services import calendar_feed, day_plan  # noqa: E402
 from app.services.auth import create_session  # noqa: E402
 
 
@@ -22,6 +23,8 @@ from app.services.auth import create_session  # noqa: E402
 def fresh_database() -> Iterator[None]:
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
+    day_plan.clear_cache()
+    calendar_feed.clear_cache()
     yield
 
 
@@ -66,3 +69,49 @@ def login_with_password() -> Callable[[str, str], TestClient]:
         return client
 
     return _login
+
+
+class FakeCollection:
+    """A tiny stand-in for a ChromaDB collection: stores chunks and ranks by shared words."""
+
+    def __init__(self) -> None:
+        self.rows: dict[str, tuple[str, dict]] = {}
+
+    def upsert(self, ids, documents, metadatas) -> None:
+        for chunk_id, document, metadata in zip(ids, documents, metadatas):
+            self.rows[chunk_id] = (document, metadata)
+
+    @staticmethod
+    def _matches(metadata: dict, where: dict) -> bool:
+        if "$and" in where:
+            return all(FakeCollection._matches(metadata, clause) for clause in where["$and"])
+        return all(metadata.get(key) == value for key, value in where.items())
+
+    def query(self, query_texts, n_results, where, include):
+        words = set(query_texts[0].lower().split())
+        scored = sorted(
+            (
+                (-len(words & set(document.lower().split())), chunk_id, document, metadata)
+                for chunk_id, (document, metadata) in self.rows.items()
+                if self._matches(metadata, where)
+            ),
+        )[:n_results]
+        return {
+            "ids": [[row[1] for row in scored]],
+            "documents": [[row[2] for row in scored]],
+            "metadatas": [[row[3] for row in scored]],
+            "distances": [[float(row[0]) for row in scored]],
+        }
+
+    def delete(self, where) -> None:
+        self.rows = {chunk_id: row for chunk_id, row in self.rows.items() if not self._matches(row[1], where)}
+
+
+@pytest.fixture(autouse=True)
+def knowledge_store(monkeypatch: pytest.MonkeyPatch) -> FakeCollection:
+    """Every test gets an empty in-memory knowledge store instead of the real ChromaDB one."""
+    from app.services import chroma_service
+
+    collection = FakeCollection()
+    monkeypatch.setattr(chroma_service, "_collection", collection)
+    return collection

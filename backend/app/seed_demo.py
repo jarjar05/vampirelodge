@@ -30,7 +30,7 @@ DEMO_MEMBERS = [
 # The assignee "me" is the signed-in user the demo is created for.
 DEMO_TASKS = [
     ("Pay medical bill", "Riverside Family Practice · invoice due today", "Riverside Family Practice", 0, 16, 0, None, "Medication", "High", "Open"),
-    ("Pick up medication", "Oak Pharmacy · blood pressure tablets", "Oak Pharmacy", 0, 17, 30, "me", "Medication", "High", "In progress"),
+    ("Pick up medication", "Oak Pharmacy · blood pressure tablets", "Oak Pharmacy", 0, 17, 30, "me", "Medication", "High", "Open"),
     ("Prepare GP appointment notes", "Bring medication list and recent blood pressure readings", None, 1, 9, 45, "me", "Appointment", "Normal", "Open"),
     ("Bring Mum to SGH", "Leave home by 8:15 AM for the specialist appointment", "Singapore General Hospital", 4, 8, 15, "David Rivera", "Appointment", "High", "Open"),
     ("Buy groceries", "Use Mum’s list on the kitchen counter", "Mum’s home and nearby grocery store", 0, 18, 0, "Jason Rivera", "Check-in", "Normal", "Open"),
@@ -134,8 +134,6 @@ def seed(database: Session, user: User, reset: bool = False) -> str:
         record_activity(task, user.id, "Created", "Added to the household delegation board")
         if assignee is not None:
             record_activity(task, user.id, "Assigned", f"Assigned to {assignee.name}")
-            if status in ("In progress", "Completed"):
-                record_activity(task, assignee.id, "Accepted", "Accepted responsibility for this task")
             if status == "Completed":
                 record_activity(task, assignee.id, "Completed", "Marked this task complete")
         tasks[title] = task

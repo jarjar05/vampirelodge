@@ -94,7 +94,7 @@ export function useCareData() {
     refreshActivity();
   }, [refreshActivity]);
 
-  const taskAction = (action: "accept" | "decline" | "complete" | "reopen") => (taskId: string) =>
+  const taskAction = (action: "complete" | "reopen") => (taskId: string) =>
     run(async () => applyTask(await careApi.taskAction(taskId, action)));
 
   return {
@@ -126,8 +126,6 @@ export function useCareData() {
       return toTask(created, membersById);
     }),
     assignTask: (taskId: string, assigneeId: string | null) => run(async () => applyTask(await careApi.assignTask(taskId, assigneeId))),
-    acceptTask: taskAction("accept"),
-    declineTask: taskAction("decline"),
     completeTask: taskAction("complete"),
     reopenTask: taskAction("reopen"),
 

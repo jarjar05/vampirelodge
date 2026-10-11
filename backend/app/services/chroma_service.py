@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from typing import Any, Sequence
 
 import chromadb
@@ -14,13 +13,20 @@ class ChromaServiceError(RuntimeError):
 
 
 @dataclass(frozen=True)
-class KnowledgeDocument:
-    id: str
+class KnowledgeChunk:
+    """One searchable piece of a knowledge document."""
+
+    document_id: str
+    chunk_index: int
     content: str
     family_id: str
+    title: str
     category: str
     source: str
-    created_at: str | None = None
+
+    @property
+    def id(self) -> str:
+        return f"{self.document_id}:{self.chunk_index}"
 
 
 _client: Any | None = None
@@ -50,66 +56,38 @@ def _get_collection() -> Any:
     return _collection
 
 
-def _as_metadata(document: KnowledgeDocument) -> dict[str, str]:
-    values = {
-        "family_id": document.family_id.strip(),
-        "category": document.category.strip(),
-        "source": document.source.strip(),
-        "created_at": document.created_at or datetime.now(timezone.utc).isoformat(),
+def _as_metadata(chunk: KnowledgeChunk) -> dict[str, str | int]:
+    return {
+        "family_id": chunk.family_id,
+        "document_id": chunk.document_id,
+        "chunk_index": chunk.chunk_index,
+        "title": chunk.title,
+        "category": chunk.category,
+        "source": chunk.source,
     }
-    if any(not value for value in values.values()):
-        raise ValueError("family_id, category, and source must not be empty")
-    return values
 
 
-def add_document(
-    document_id: str,
-    content: str,
-    family_id: str,
-    category: str,
-    source: str,
-    created_at: str | None = None,
-) -> None:
-    """Add or replace one document and its family-scoped metadata."""
-    add_documents([
-        KnowledgeDocument(
-            id=document_id,
-            content=content,
-            family_id=family_id,
-            category=category,
-            source=source,
-            created_at=created_at,
-        )
-    ])
-
-
-def add_documents(documents: Sequence[KnowledgeDocument]) -> None:
-    """Add or replace a batch of documents with required family metadata."""
-    if not documents:
+def add_chunks(chunks: Sequence[KnowledgeChunk]) -> None:
+    """Add or replace chunks, each tagged with its family and parent document."""
+    if not chunks:
         return
-    if any(not document.id.strip() or not document.content.strip() for document in documents):
-        raise ValueError("Each document requires a non-empty id and content")
-
     try:
-        collection = _get_collection()
-        collection.upsert(
-            ids=[document.id.strip() for document in documents],
-            documents=[document.content for document in documents],
-            metadatas=[_as_metadata(document) for document in documents],
+        _get_collection().upsert(
+            ids=[chunk.id for chunk in chunks],
+            documents=[chunk.content for chunk in chunks],
+            metadatas=[_as_metadata(chunk) for chunk in chunks],
         )
-    except ValueError:
-        raise
     except Exception as error:
         raise ChromaServiceError("Could not add documents to the knowledge collection") from error
 
 
-def search_documents(
+def search_chunks(
     query: str,
     family_id: str,
     limit: int = 5,
     category: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Search semantically within one family's documents only."""
+    """Search semantically within one family's chunks only."""
     if not query.strip() or not family_id.strip():
         raise ValueError("query and family_id must not be empty")
     if limit < 1 or limit > 100:
@@ -132,36 +110,22 @@ def search_documents(
         distances = result.get("distances", [[]])[0]
         return [
             {
-                "id": document_id,
+                "id": chunk_id,
                 "content": contents[index],
                 "metadata": metadatas[index],
                 "distance": distances[index] if index < len(distances) else None,
             }
-            for index, document_id in enumerate(ids)
+            for index, chunk_id in enumerate(ids)
         ]
-    except ValueError:
-        raise
     except Exception as error:
         raise ChromaServiceError("Could not search the knowledge collection") from error
 
 
-def delete_document(document_id: str, family_id: str) -> bool:
-    """Delete a document only when it belongs to the requested family."""
-    if not document_id.strip() or not family_id.strip():
-        raise ValueError("document_id and family_id must not be empty")
-
+def delete_document_chunks(document_id: str, family_id: str) -> None:
+    """Delete every chunk of a document, only within the given family."""
     try:
-        collection = _get_collection()
-        existing = collection.get(
-            ids=[document_id.strip()],
-            where={"family_id": family_id.strip()},
-            include=["metadatas"],
+        _get_collection().delete(
+            where={"$and": [{"document_id": document_id}, {"family_id": family_id}]},
         )
-        if not existing.get("ids"):
-            return False
-        collection.delete(ids=[document_id.strip()], where={"family_id": family_id.strip()})
-        return True
-    except ValueError:
-        raise
     except Exception as error:
         raise ChromaServiceError("Could not delete the knowledge document") from error

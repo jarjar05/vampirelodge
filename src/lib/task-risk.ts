@@ -1,6 +1,6 @@
 import type { CareTask, FamilyMember } from "@/types/care";
 
-export type TaskRiskTag = "Overdue" | "No confirmation" | "Due soon" | "Unavailable";
+export type TaskRiskTag = "Overdue" | "Unassigned" | "Due soon" | "Unavailable";
 
 export type TaskRiskReason = {
   tag: TaskRiskTag;
@@ -23,7 +23,7 @@ export type TaskRiskEngine = (
 
 export const taskRiskTagStyles: Record<TaskRiskTag, string> = {
   Overdue: "border-alert/30 bg-alert/10 text-alert",
-  "No confirmation": "border-warning/40 bg-warning/20 text-warning-foreground",
+  Unassigned: "border-warning/40 bg-warning/20 text-warning-foreground",
   "Due soon": "border-accent bg-accent/50 text-accent-foreground",
   Unavailable: "border-primary/25 bg-primary/10 text-primary",
 };
@@ -39,16 +39,13 @@ export function mockTaskRiskAssessment(
   const reasons: TaskRiskReason[] = [];
   const deadline = task.dueAt ? new Date(task.dueAt) : undefined;
   const remainingMs = deadline ? deadline.getTime() - now.getTime() : undefined;
-  const accepted = task.status === "In progress";
+  const isUnassigned = task.assigneeId === null;
   const assignedMember = members.find((member) => member.id === task.assigneeId);
 
   if (remainingMs !== undefined && remainingMs < 0) reasons.push({ tag: "Overdue", label: "Overdue" });
-  if (!accepted) reasons.push({
-    tag: "No confirmation",
-    label: task.assigneeId === null ? "No one assigned or confirmed yet" : "No confirmation yet",
-  });
-  if (!accepted && remainingMs !== undefined && remainingMs >= 0 && remainingMs <= 3 * 60 * 60_000) {
-    reasons.push({ tag: "Due soon", label: "Due soon without confirmation" });
+  if (isUnassigned) reasons.push({ tag: "Unassigned", label: "No one is assigned yet" });
+  if (isUnassigned && remainingMs !== undefined && remainingMs >= 0 && remainingMs <= 3 * 60 * 60_000) {
+    reasons.push({ tag: "Due soon", label: "Due within 3 hours with no one assigned" });
   }
   if (assignedMember?.availability === "Away today") reasons.push({ tag: "Unavailable", label: `${assignedMember.firstName} is unavailable today` });
 

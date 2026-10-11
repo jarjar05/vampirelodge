@@ -5,3 +5,7 @@ SQLAlchemy>=2.0,<3.0
 psycopg[binary]>=3.2,<4.0
 pwdlib[argon2]>=0.2.1,<1.0
 chromadb>=1.0,<2.0
+openai>=3.28,<4.0
+httpx>=0.27,<1.0
+icalendar>=6.0,<8.0
+recurring-ical-events>=3.0,<4.0

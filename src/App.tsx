@@ -3,6 +3,7 @@ import {
   Activity as ActivityIcon,
   AlertTriangle,
   ArrowRight,
+  BookOpen,
   CalendarDays,
   Check,
   ChevronDown,
@@ -28,11 +29,14 @@ import { LoginPage, type AuthUser } from "@/components/auth/login-page";
 import { FamilySetup } from "@/components/family/family-setup";
 import { FamilyAvatar } from "@/components/family-avatar";
 import { FamilyAssignmentSuggestion } from "@/components/family-assignment-suggestion";
+import { DayPlanCard } from "@/components/day-plan-card";
 import { NotificationsMenu, ProfileMenu } from "@/components/header-menus";
 import { ProfileSettingsDialog } from "@/components/profile-settings-dialog";
 import { useCareData, type CareData } from "@/hooks/use-care-data";
+import { useReveal } from "@/hooks/use-reveal";
 import { formatLongDate, getLocalDateInputValue, localInputsToIso, partOfDay } from "@/lib/dates";
 import { buildNotifications, useDismissibleNotifications } from "@/lib/notifications";
+import { KnowledgePage } from "@/pages/knowledge-page";
 import { mockTaskRiskAssessment, taskRiskTagStyles, type TaskRiskAssessment } from "@/lib/task-risk";
 import {
   availabilityOptions,
@@ -50,6 +54,7 @@ const navigation = [
   { to: "/tasks", label: "Tasks", mobileLabel: "Tasks", icon: ClipboardList, end: false },
   { to: "/appointments", label: "Appointments", mobileLabel: "Appts", icon: CalendarDays, end: false },
   { to: "/circle", label: "Family", mobileLabel: "Family", icon: UsersRound, end: false },
+  { to: "/knowledge", label: "Knowledge", mobileLabel: "Notes", icon: BookOpen, end: false },
   { to: "/activity", label: "Activity", mobileLabel: "Activity", icon: ActivityIcon, end: false },
 ];
 
@@ -83,7 +88,7 @@ function AppShell() {
   };
 
   if (isCheckingSession) {
-    return <main className="grid min-h-screen place-items-center bg-background text-sm text-muted-foreground">Checking your session…</main>;
+    return <main className="app-backdrop grid min-h-screen place-items-center text-sm text-muted-foreground">Checking your session…</main>;
   }
 
   if (!currentUser) {
@@ -110,12 +115,12 @@ function CareApp({ currentUser, onUserUpdated, onSignOut }: { currentUser: AuthU
   }, [familyName]);
 
   if (care.status === "loading") {
-    return <main className="grid min-h-screen place-items-center bg-background text-sm text-muted-foreground">Loading your family…</main>;
+    return <main className="app-backdrop grid min-h-screen place-items-center text-sm text-muted-foreground">Loading your family…</main>;
   }
 
   if (care.status === "error") {
     return (
-      <main className="grid min-h-screen place-items-center bg-background px-5 text-center text-foreground">
+      <main className="app-backdrop grid min-h-screen place-items-center px-5 text-center text-foreground">
         <div>
           <p role="alert" className="text-sm text-muted-foreground">{care.loadError}</p>
           <div className="mt-4 flex justify-center gap-2">
@@ -149,7 +154,7 @@ function CareApp({ currentUser, onUserUpdated, onSignOut }: { currentUser: AuthU
   );
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="app-backdrop min-h-screen text-foreground">
       <aside className="sidebar fixed inset-y-0 left-0 z-10 hidden w-64 flex-col border-r border-border/70 px-5 py-7 md:flex">
         <Link to="/" aria-label={`${familyName} home`} className="flex min-w-0 items-center gap-3 px-2">
           <span className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-md shadow-primary/20">
@@ -170,7 +175,7 @@ function CareApp({ currentUser, onUserUpdated, onSignOut }: { currentUser: AuthU
               className={({ isActive }) =>
                 `flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-colors ${
                   isActive
-                    ? "bg-primary/10 font-semibold text-primary shadow-sm"
+                    ? "bg-primary font-semibold text-primary-foreground shadow-md shadow-primary/25"
                     : "text-muted-foreground hover:bg-muted/80 hover:text-foreground"
                 }`
               }
@@ -221,6 +226,7 @@ function CareApp({ currentUser, onUserUpdated, onSignOut }: { currentUser: AuthU
             <Route path="/tasks" element={<CarePlanPage care={care} currentUser={currentUser} />} />
             <Route path="/appointments" element={<AppointmentsPage care={care} />} />
             <Route path="/circle" element={<CareCirclePage care={care} family={family} currentUser={currentUser} />} />
+            <Route path="/knowledge" element={<KnowledgePage />} />
             <Route path="/activity" element={<ActivityPage care={care} />} />
             <Route path="*" element={overview} />
           </Routes>
@@ -292,14 +298,15 @@ function OverviewPage({ care, currentUser }: { care: CareData; currentUser: Auth
     <>
       <PageHeading showDetails eyebrow={formatLongDate(now)} title={`Good ${partOfDay(now)}, ${firstName}`} />
       <section className="grid grid-cols-2 gap-3 xl:grid-cols-4" aria-label="Care summary">
-        <SummaryTile to="/tasks" icon={ClipboardList} label="Active tasks" value={activeTasks.length} tone="bg-primary/10 text-primary" />
-        <SummaryTile to="/appointments" icon={CalendarDays} label="Appointments" value={upcomingAppointments.length} tone="bg-secondary text-secondary-foreground" />
-        <SummaryTile to="/tasks?filter=Unassigned" icon={UserRound} label="Unassigned" value={unassignedTasks.length} tone="bg-sky-100 text-sky-700" />
-        <SummaryTile to="/tasks?filter=Needs%20attention" icon={AlertTriangle} label="Needs attention" value={attentionTasks.length} tone="bg-accent text-accent-foreground" />
+        <SummaryTile order={0} to="/tasks" icon={ClipboardList} label="Active tasks" value={activeTasks.length} tone="bg-primary text-primary-foreground shadow-primary/30" />
+        <SummaryTile order={1} to="/appointments" icon={CalendarDays} label="Appointments" value={upcomingAppointments.length} tone="bg-amber-400 text-amber-950 shadow-amber-400/40" />
+        <SummaryTile order={2} to="/tasks?filter=Unassigned" icon={UserRound} label="Unassigned" value={unassignedTasks.length} tone="bg-sky-600 text-white shadow-sky-600/30" />
+        <SummaryTile order={3} to="/tasks?filter=Needs%20attention" icon={AlertTriangle} label="Needs attention" value={attentionTasks.length} tone="bg-alert text-white shadow-alert/30" />
       </section>
 
       <div className="mt-6 grid items-start gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.75fr)]">
         <div className="space-y-6">
+          {myTasks.length > 0 && <DayPlanCard tasks={myTasks} />}
           <OverviewCard title="My tasks" to="/tasks" linkLabel="All tasks">
             <div className="divide-y divide-border">
               {myTasks.slice(0, overviewListLimit).map((task) => <TaskRow key={task.id} task={task} />)}
@@ -369,17 +376,25 @@ function EmptyNote({ children }: { children: React.ReactNode }) {
   return <p className="py-3 text-sm text-muted-foreground">{children}</p>;
 }
 
-function SummaryTile({ to, icon: Icon, label, value, tone }: { to: string; icon: typeof CalendarDays; label: string; value: number; tone: string }) {
+function SummaryTile({ to, icon: Icon, label, value, tone, order }: { to: string; icon: typeof CalendarDays; label: string; value: number; tone: string; order: number }) {
+  // The wrapper does the scroll reveal so the link keeps its own hover and press transitions.
+  const ref = useReveal<HTMLDivElement>();
   return (
-    <Link to={to} className="flex items-center gap-4 rounded-2xl border border-border/60 bg-white/85 p-4 shadow-sm backdrop-blur-md transition duration-200 hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:p-5">
-      <span className={`flex size-10 shrink-0 items-center justify-center rounded-xl ${tone}`}>
-        <Icon size={19} aria-hidden="true" />
-      </span>
-      <div className="min-w-0">
-        <p className="font-display text-2xl font-semibold leading-none">{value}</p>
-        <p className="mt-1.5 truncate text-xs font-medium text-muted-foreground">{label}</p>
-      </div>
-    </Link>
+    // Each tile follows the one before it as the row comes into view.
+    <div ref={ref} className="reveal" style={{ "--reveal-delay": `${order * 70}ms` } as React.CSSProperties}>
+      <Link
+        to={to}
+        className="flex h-full items-center gap-4 rounded-2xl border border-border/60 bg-white/90 p-4 shadow-sm hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:p-5"
+      >
+        <span className={`flex size-11 shrink-0 items-center justify-center rounded-xl shadow-md ${tone}`}>
+          <Icon size={20} aria-hidden="true" />
+        </span>
+        <div className="min-w-0">
+          <p className="font-display text-3xl font-semibold leading-none">{value}</p>
+          <p className="mt-1.5 truncate text-xs font-medium text-muted-foreground">{label}</p>
+        </div>
+      </Link>
+    </div>
   );
 }
 
@@ -557,6 +572,7 @@ function CarePlanPage({ care, currentUser }: { care: CareData; currentUser: Auth
       )}
       {recommendationTask && !recommendationTask.complete && (
         <FamilyAssignmentSuggestion
+          key={recommendationTask.id}
           className="mb-5"
           task={recommendationTask}
           tasks={tasks}
@@ -651,10 +667,7 @@ function CarePlanPage({ care, currentUser }: { care: CareData; currentUser: Auth
           task={selectedTask}
           members={members}
           activity={selectedTask.activity}
-          canRespond={selectedTask.assigneeId === currentUser.id}
           onClose={() => setSelectedTaskId(null)}
-          onAccept={() => void care.acceptTask(selectedTask.id)}
-          onDecline={() => void care.declineTask(selectedTask.id)}
           onReassign={(assigneeId) => void care.assignTask(selectedTask.id, assigneeId)}
           onComplete={() => void toggleTask(selectedTask)}
         />
@@ -799,25 +812,32 @@ function PriorityBadge({ priority }: { priority: CareTask["priority"] }) {
   );
 }
 
+/** One short line for a task's history, e.g. "Annie assigned it to Jerry". */
+function describeActivity(item: TaskActivity) {
+  switch (item.action) {
+    case "Created": return `${item.actor} created this task`;
+    case "Assigned":
+    case "Reassigned":
+      return item.detail.startsWith("Assigned to ") ? `${item.actor} assigned it to ${item.detail.slice("Assigned to ".length)}` : `${item.actor} unassigned it`;
+    case "Accepted": return `${item.actor} accepted it`;
+    case "Declined": return `${item.actor} declined it`;
+    case "Completed": return `${item.actor} completed it`;
+    case "Reopened": return `${item.actor} reopened it`;
+  }
+}
+
 function TaskDetailDialog({
   task,
   members,
   activity,
-  canRespond,
   onClose,
-  onAccept,
-  onDecline,
   onReassign,
   onComplete,
 }: {
   task: CareTask;
   members: readonly FamilyMember[];
   activity: TaskActivity[];
-  /** Only the assignee can accept or decline. */
-  canRespond: boolean;
   onClose: () => void;
-  onAccept: () => void;
-  onDecline: () => void;
   onReassign: (assigneeId: string) => void;
   onComplete: () => void;
 }) {
@@ -831,15 +851,9 @@ function TaskDetailDialog({
   }, []);
 
   const assignedMember = members.find((member) => member.id === task.assigneeId);
-  const isUnassigned = task.assigneeId === null;
-  const isAccepted = task.status === "In progress" || task.complete;
-  const stages = [
-    { label: "Created", complete: true, time: activity.find((item) => item.action === "Created")?.time, state: "In care plan" },
-    { label: "Assigned", complete: !isUnassigned, time: [...activity].reverse().find((item) => item.action === "Assigned" || item.action === "Reassigned")?.time, state: isUnassigned ? "Needs an owner" : `With ${assignedMember?.firstName ?? task.owner}` },
-    { label: "Accepted", complete: isAccepted, time: [...activity].reverse().find((item) => item.action === "Accepted")?.time, state: isAccepted ? "Responsibility accepted" : "Awaiting acceptance" },
-    { label: "Completed", complete: task.complete, time: [...activity].reverse().find((item) => item.action === "Completed")?.time, state: task.complete ? "Finished" : "Not completed" },
-  ];
-  const activeResponse = !isUnassigned && !task.complete;
+  const isOverdue = !task.complete && task.attention === "Overdue";
+  // Shown only when the task is for someone in particular.
+  const recipient = task.recipient && task.recipient !== "Shared household" ? task.recipient : null;
 
   return (
     <dialog
@@ -847,13 +861,12 @@ function TaskDetailDialog({
       aria-labelledby="task-detail-title"
       onClose={onClose}
       onClick={(event) => { if (event.target === event.currentTarget) event.currentTarget.close(); }}
-      className="fixed inset-0 m-auto max-h-[calc(100%-2rem)] w-[calc(100%-2rem)] max-w-3xl overflow-y-auto rounded-xl border border-border bg-card p-0 text-foreground shadow-xl backdrop:bg-foreground/35"
+      className="fixed inset-0 m-auto max-h-[calc(100%-2rem)] w-[calc(100%-2rem)] max-w-lg overflow-y-auto rounded-xl border border-border bg-card p-0 text-foreground shadow-xl backdrop:bg-foreground/35"
     >
       <div className="p-5 sm:p-7">
-        <div className="flex items-start justify-between gap-4 border-b border-border pb-5">
+        <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-[0.1em] text-primary">Household delegation · Task view</p>
-            <h2 id="task-detail-title" className="mt-2 font-display text-2xl font-semibold">{task.title}</h2>
+            <h2 id="task-detail-title" className="font-display text-2xl font-semibold">{task.title}</h2>
             {task.detail && <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{task.detail}</p>}
           </div>
           <button autoFocus type="button" aria-label="Close task details" onClick={() => dialogRef.current?.close()} className="flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
@@ -861,69 +874,44 @@ function TaskDetailDialog({
           </button>
         </div>
 
-        <section aria-label="Task responsibility" className="mt-5 flex flex-col gap-3 rounded-lg bg-primary/5 p-4 sm:flex-row sm:items-center">
-          <div className="flex min-w-0 flex-1 items-center gap-3">
-            {assignedMember ? <FamilyAvatar initials={assignedMember.initials} tone={assignedMember.tone} imageUrl={assignedMember.avatarUrl} className="size-11" /> : <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-warning/30 text-sm font-semibold text-warning-foreground">?</span>}
-            <div className="min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Assigned family member</p>
-              <p className="mt-0.5 truncate text-base font-semibold">{assignedMember?.name ?? "Unassigned"}</p>
-              {assignedMember && <p className="text-xs text-muted-foreground">{assignedMember.role}</p>}
-            </div>
+        <div className="mt-5 flex items-center gap-3 rounded-lg bg-primary/5 p-3.5">
+          {assignedMember
+            ? <FamilyAvatar initials={assignedMember.initials} tone={assignedMember.tone} imageUrl={assignedMember.avatarUrl} className="size-10" />
+            : <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-full border border-dashed border-input text-sm text-muted-foreground">?</span>}
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold">{assignedMember?.name ?? "Unassigned"}</p>
+            <p className="text-xs text-muted-foreground">{task.complete ? "Completed" : assignedMember ? assignedMember.role : "Needs someone to take it"}</p>
           </div>
-          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-            <PriorityBadge priority={task.priority} />
-          </div>
-        </section>
-
-        <dl className="mt-5 grid grid-cols-2 gap-x-5 gap-y-4 border-b border-border pb-5 text-sm sm:grid-cols-4">
-          <div><dt className="text-xs text-muted-foreground">Delegation focus</dt><dd className="mt-1 font-medium">{task.recipient}</dd></div>
-          <div><dt className="text-xs text-muted-foreground">Due date &amp; time</dt><dd className="mt-1 inline-flex items-center gap-1.5 font-medium"><Clock3 size={14} aria-hidden="true" />{task.time}</dd></div>
-          <div><dt className="text-xs text-muted-foreground">Location</dt><dd className="mt-1 inline-flex items-center gap-1.5 font-medium"><MapPin size={14} aria-hidden="true" />{task.location || "Not specified"}</dd></div>
-          <div><dt className="text-xs text-muted-foreground">Category</dt><dd className="mt-1 font-medium">{task.category}</dd></div>
-        </dl>
-
-        <div className="mt-5 grid gap-6 md:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
-          <section aria-labelledby="task-timeline-heading">
-            <h3 id="task-timeline-heading" className="font-display text-lg font-semibold">Task timeline</h3>
-            <ol className="mt-4 space-y-0">
-              {stages.map((stage, index) => (
-                <li key={stage.label} className="relative flex min-h-14 gap-3 pb-3 last:min-h-0 last:pb-0">
-                  {index < stages.length - 1 && <span aria-hidden="true" className={`absolute left-[11px] top-6 h-8 border-l ${stage.complete ? "border-primary/50" : "border-border"}`} />}
-                  <span className={`relative mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border ${stage.complete ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-muted-foreground"}`}>
-                    {stage.complete ? <Check size={13} aria-hidden="true" /> : <span className="size-1.5 rounded-full bg-current" />}
-                  </span>
-                  <div className="flex min-w-0 flex-1 items-start justify-between gap-2">
-                    <div><p className={`text-sm font-semibold ${stage.complete ? "text-foreground" : "text-muted-foreground"}`}>{stage.label}</p><p className="mt-0.5 text-xs text-muted-foreground">{stage.state}</p></div>
-                    <span className="shrink-0 text-[11px] text-muted-foreground">{stage.complete ? stage.time ?? "Timestamp unavailable" : "—"}</span>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          </section>
-
-          <section aria-labelledby="task-history-heading">
-            <h3 id="task-history-heading" className="font-display text-lg font-semibold">Activity history</h3>
-            <ol className="mt-3 divide-y divide-border border-y border-border">
-              {[...activity].reverse().map((item) => (
-                <li key={item.id} className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 py-3">
-                  <p className="text-sm font-semibold">{item.actor}</p>
-                  <time className="text-right text-[11px] text-muted-foreground">{item.time}</time>
-                  <p className="col-span-2 text-xs leading-relaxed text-muted-foreground"><span className="font-semibold text-foreground/80">{item.action}.</span> {item.detail}</p>
-                </li>
-              ))}
-            </ol>
-          </section>
+          <PriorityBadge priority={task.priority} />
         </div>
 
-        <section aria-label="Task actions" className="mt-6 border-t border-border pt-4">
+        <ul className="mt-4 space-y-2.5 text-sm">
+          <li className={`flex items-center gap-2.5 ${isOverdue ? "font-medium text-alert" : ""}`}>
+            <Clock3 size={15} aria-hidden="true" className={`shrink-0 ${isOverdue ? "" : "text-muted-foreground"}`} />
+            <span><span className="sr-only">Due: </span>{task.time}{isOverdue ? " · Overdue" : ""}</span>
+          </li>
+          {task.location && (
+            <li className="flex items-center gap-2.5">
+              <MapPin size={15} aria-hidden="true" className="shrink-0 text-muted-foreground" />
+              <span><span className="sr-only">Location: </span>{task.location}</span>
+            </li>
+          )}
+          {recipient && (
+            <li className="flex items-center gap-2.5">
+              <UserRound size={15} aria-hidden="true" className="shrink-0 text-muted-foreground" />
+              <span>For {recipient}</span>
+            </li>
+          )}
+        </ul>
+
+        <section aria-label="Task actions" className="mt-6">
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" disabled={!activeResponse || !canRespond || isAccepted} onClick={onAccept}>Accept task</Button>
-            <Button size="sm" variant="outline" disabled={!activeResponse || !canRespond} onClick={onDecline}>Decline task</Button>
-            <Button size="sm" variant="outline" disabled={task.complete} onClick={() => { setSelectedOwner(task.assigneeId ?? ""); setIsReassigning((current) => !current); }}>Reassign</Button>
             <Button size="sm" variant={task.complete ? "outline" : "default"} onClick={onComplete}>{task.complete ? "Reopen task" : "Mark complete"}</Button>
+            {!task.complete && (
+              <Button size="sm" variant="outline" aria-expanded={isReassigning} onClick={() => { setSelectedOwner(task.assigneeId ?? ""); setIsReassigning((current) => !current); }}>{assignedMember ? "Reassign" : "Assign"}</Button>
+            )}
           </div>
-          {activeResponse && !canRespond && <p className="mt-2 text-xs text-muted-foreground">Only {assignedMember?.firstName ?? "the assignee"} can accept or decline this task.</p>}
-          {isReassigning && (
+          {isReassigning && !task.complete && (
             <div className="mt-3 flex flex-col gap-2 rounded-lg bg-muted/50 p-3 sm:flex-row">
               <label className="sr-only" htmlFor={`reassign-task-${task.id}`}>Assign to family member</label>
               <select
@@ -935,11 +923,28 @@ function TaskDetailDialog({
                 <option value="">Select a family member</option>
                 {members.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
               </select>
-              <Button size="sm" disabled={!selectedOwner || selectedOwner === task.assigneeId} onClick={() => { onReassign(selectedOwner); setIsReassigning(false); }}>Save assignment</Button>
+              <Button size="sm" disabled={!selectedOwner || selectedOwner === task.assigneeId} onClick={() => { onReassign(selectedOwner); setIsReassigning(false); }}>Save</Button>
               <Button size="sm" variant="ghost" onClick={() => setIsReassigning(false)}>Cancel</Button>
             </div>
           )}
         </section>
+
+        {activity.length > 0 && (
+          <details className="group mt-6 border-t border-border pt-4">
+            <summary className="flex cursor-pointer list-none items-center gap-1.5 rounded text-sm font-semibold text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+              <ChevronDown size={15} aria-hidden="true" className="-rotate-90 transition-transform group-open:rotate-0" />
+              History ({activity.length})
+            </summary>
+            <ol className="mt-3 space-y-2.5">
+              {[...activity].reverse().map((item) => (
+                <li key={item.id} className="flex items-baseline justify-between gap-3 text-sm">
+                  <span className="min-w-0">{describeActivity(item)}</span>
+                  <time className="shrink-0 whitespace-nowrap text-xs text-muted-foreground">{item.time}</time>
+                </li>
+              ))}
+            </ol>
+          </details>
+        )}
       </div>
     </dialog>
   );

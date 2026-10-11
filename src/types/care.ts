@@ -27,6 +27,7 @@ export type FamilyMember = {
   tone: "sage" | "coral" | "gold";
 };
 
+/** "Accepted" and "Declined" are no longer recorded, but still appear in older history. */
 export type TaskActivityAction = "Created" | "Assigned" | "Accepted" | "Declined" | "Reassigned" | "Completed" | "Reopened";
 
 export type TaskActivity = {
@@ -56,7 +57,7 @@ export type CareTask = {
   attention?: "Unassigned" | "Overdue";
   recipient: string;
   priority: "High" | "Normal" | "Low";
-  status: "Open" | "In progress" | "Completed";
+  status: "Open" | "Completed";
   activity: TaskActivity[];
 };
 
@@ -71,6 +72,49 @@ export type CareAppointment = {
   /** Attendee's first name, when someone is going. */
   person?: string;
   relatedTask?: string;
+};
+
+export type KnowledgeDocument = {
+  id: string;
+  title: string;
+  category: string;
+  content: string;
+  /** How many searchable pieces the document was split into. */
+  chunkCount: number;
+  addedBy?: string;
+  addedAt: string;
+};
+
+/** One excerpt of a document that matched a search. */
+export type KnowledgeSearchResult = {
+  id: string;
+  documentId: string;
+  title: string;
+  content: string;
+};
+
+export type AssignmentSuggestion = {
+  memberId: string;
+  reason: string;
+  /** Titles of the family notes the assistant was given. */
+  noteTitles: string[];
+};
+
+/** Whether the signed-in person has linked a calendar. The link itself never leaves the server. */
+export type CalendarStatus = {
+  connected: boolean;
+  syncedAt: string | null;
+  /** Busy times in the next 30 days; null when the calendar could not be read. */
+  eventCount: number | null;
+  error: string | null;
+};
+
+/** An AI summary of one person's open tasks, with a suggested order to do them in. */
+export type DayPlan = {
+  /** Null when the person has no open tasks. */
+  summary: string | null;
+  steps: { taskId: string; note: string }[];
+  generatedAt: string | null;
 };
 
 export type FamilyActivityItem = {

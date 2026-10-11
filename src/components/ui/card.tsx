@@ -1,10 +1,13 @@
 import type { HTMLAttributes } from "react";
+import { useReveal } from "@/hooks/use-reveal";
 import { cn } from "@/lib/utils";
 
 export function Card({ className, ...props }: HTMLAttributes<HTMLElement>) {
+  const ref = useReveal<HTMLElement>();
   return (
     <section
-      className={cn("rounded-2xl border border-border/60 bg-white/85 shadow-sm backdrop-blur-xl", className)}
+      ref={ref}
+      className={cn("reveal rounded-2xl border border-border/60 bg-white/90 shadow-sm shadow-foreground/[0.04] backdrop-blur-xl", className)}
       {...props}
     />
   );

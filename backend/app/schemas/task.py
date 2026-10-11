@@ -61,6 +61,37 @@ class TaskResponse(BaseModel):
     activity: list[TaskActivityResponse]
 
 
+class AssignmentSuggestionResponse(BaseModel):
+    member_id: uuid.UUID
+    reason: str
+    # Titles of the family notes that were given to the model for this suggestion.
+    note_titles: list[str]
+
+
+class TaskAvailabilityResponse(BaseModel):
+    # Members with an appointment or a calendar event within an hour of the task's due time.
+    busy_member_ids: list[uuid.UUID]
+
+
+class DayPlanRequest(BaseModel):
+    # IANA name of the person's time zone, e.g. "Asia/Singapore", so times read naturally in the summary.
+    timezone: str | None = Field(default=None, max_length=64)
+    # Ask the model again even when the last plan is still current.
+    refresh: bool = False
+
+
+class DayPlanStepResponse(BaseModel):
+    task_id: uuid.UUID
+    note: str
+
+
+class DayPlanResponse(BaseModel):
+    # None when the person has no open tasks; the model is not called in that case.
+    summary: str | None
+    steps: list[DayPlanStepResponse]
+    generated_at: datetime | None
+
+
 class FamilyActivityResponse(TaskActivityResponse):
     task_id: uuid.UUID
     task_title: str

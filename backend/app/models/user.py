@@ -23,6 +23,8 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     # A small image stored inline as a data URL; the client resizes it before upload.
     avatar_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Read-only feed link to the person's own calendar. Anyone holding it can read the calendar, so it is never sent to a browser.
+    calendar_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False, server_default=func.now())
 
     @validates("email")

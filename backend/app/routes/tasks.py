@@ -11,12 +11,19 @@ from app.dependencies.auth import AuthenticatedUser
 from app.dependencies.family import FamilyMemberContext
 from app.models import Task, TaskActivity
 from app.schemas.task import (
+    AssignmentSuggestionResponse,
+    DayPlanRequest,
+    DayPlanResponse,
+    DayPlanStepResponse,
+    TaskAvailabilityResponse,
     FamilyActivityResponse,
     TaskActivityResponse,
     TaskAssignRequest,
     TaskCreateRequest,
     TaskResponse,
 )
+from app.services import assignment, day_plan
+from app.services.llm import LLMUnavailable
 from app.services.tasks import get_family_member, record_activity
 
 router = APIRouter(prefix="/api/families/me", tags=["tasks"])
@@ -64,13 +71,6 @@ def _save(database: Session, task: Task) -> TaskResponse:
     database.commit()
     database.refresh(task)
     return _task_response(task)
-
-
-def _require_assignee(task: Task, user_id: uuid.UUID) -> None:
-    if task.assignee_id != user_id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the assigned family member can respond to this task")
-    if task.status == "Completed":
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This task is already completed")
 
 
 @router.get("/tasks", response_model=list[TaskResponse])
@@ -138,32 +138,53 @@ def assign_task(
         action = "Reassigned" if task.assignee_id is not None else "Assigned"
 
     task.assignee_id = payload.assignee_id
-    if task.status != "Completed":
-        # A new assignee has not accepted yet.
-        task.status = "Open"
     record_activity(task, user.id, action, detail)
     return _save(database, task)
 
 
-@router.post("/tasks/{task_id}/accept", response_model=TaskResponse)
-def accept_task(task_id: uuid.UUID, family_access: FamilyMemberContext, user: AuthenticatedUser, database: DatabaseSession) -> TaskResponse:
+@router.get("/tasks/{task_id}/availability", response_model=TaskAvailabilityResponse)
+def read_task_availability(
+    task_id: uuid.UUID,
+    family_access: FamilyMemberContext,
+    database: DatabaseSession,
+    timezone_name: Annotated[str | None, Query(alias="timezone", max_length=64)] = None,
+) -> TaskAvailabilityResponse:
+    """Who is busy when this task is due, from app appointments and linked calendars. No model call is made."""
     task = _get_family_task(database, family_access.family.id, task_id)
-    _require_assignee(task, user.id)
-    if task.status == "In progress":
-        return _task_response(task)
-    task.status = "In progress"
-    record_activity(task, user.id, "Accepted", "Accepted responsibility for this task")
-    return _save(database, task)
+    busy = assignment.members_busy_at_task_time(database, task, day_plan.resolve_timezone(timezone_name))
+    return TaskAvailabilityResponse(busy_member_ids=sorted(busy, key=str))
 
 
-@router.post("/tasks/{task_id}/decline", response_model=TaskResponse)
-def decline_task(task_id: uuid.UUID, family_access: FamilyMemberContext, user: AuthenticatedUser, database: DatabaseSession) -> TaskResponse:
+@router.post("/tasks/{task_id}/suggestion", response_model=AssignmentSuggestionResponse)
+def suggest_task_assignee(
+    task_id: uuid.UUID,
+    family_access: FamilyMemberContext,
+    database: DatabaseSession,
+    timezone_name: Annotated[str | None, Query(alias="timezone", max_length=64)] = None,
+) -> AssignmentSuggestionResponse:
+    """Ask the language model who should take this task. It only suggests; nothing is assigned."""
     task = _get_family_task(database, family_access.family.id, task_id)
-    _require_assignee(task, user.id)
-    task.assignee_id = None
-    task.status = "Open"
-    record_activity(task, user.id, "Declined", "Declined the assignment and returned it to the unassigned queue")
-    return _save(database, task)
+    try:
+        suggestion = assignment.suggest_assignee(database, task, day_plan.resolve_timezone(timezone_name))
+    except LLMUnavailable as error:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(error)) from error
+    return AssignmentSuggestionResponse(member_id=suggestion.member_id, reason=suggestion.reason, note_titles=suggestion.note_titles)
+
+
+@router.post("/day-plan", response_model=DayPlanResponse)
+def plan_my_day(payload: DayPlanRequest, family_access: FamilyMemberContext, user: AuthenticatedUser, database: DatabaseSession) -> DayPlanResponse:
+    """Summarise the signed-in person's open tasks and suggest an order. Reuses the last plan while nothing has changed."""
+    try:
+        plan = day_plan.plan_my_day(database, family_access.family.id, user.id, payload.timezone, refresh=payload.refresh)
+    except LLMUnavailable as error:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(error)) from error
+    if plan is None:
+        return DayPlanResponse(summary=None, steps=[], generated_at=None)
+    return DayPlanResponse(
+        summary=plan.summary,
+        steps=[DayPlanStepResponse(task_id=step.task_id, note=step.note) for step in plan.steps],
+        generated_at=plan.generated_at,
+    )
 
 
 @router.post("/tasks/{task_id}/complete", response_model=TaskResponse)

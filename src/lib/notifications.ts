@@ -25,8 +25,14 @@ export function buildNotifications(
   for (const task of myTasks.filter((item) => item.attention === "Overdue")) {
     notifications.push({ id: `overdue-${task.id}`, title: task.title, detail: `Overdue · was due ${task.time}`, to: "/tasks?filter=My%20Tasks", tone: "alert" });
   }
-  for (const task of myTasks.filter((item) => item.status === "Open" && item.attention !== "Overdue")) {
-    notifications.push({ id: `accept-${task.id}`, title: task.title, detail: `Waiting for you to accept · due ${task.time}`, to: "/tasks?filter=My%20Tasks", tone: "warning" });
+  // My tasks due in the next 24 hours.
+  const isDueSoon = (task: CareTask) => {
+    if (!task.dueAt || task.attention === "Overdue") return false;
+    const remainingMs = new Date(task.dueAt).getTime() - now.getTime();
+    return remainingMs >= 0 && remainingMs <= 24 * 60 * 60_000;
+  };
+  for (const task of myTasks.filter(isDueSoon)) {
+    notifications.push({ id: `due-${task.id}`, title: task.title, detail: `Yours · due ${task.time}`, to: "/tasks?filter=My%20Tasks", tone: "warning" });
   }
 
   const unassigned = tasks.filter((task) => !task.complete && task.assigneeId === null);

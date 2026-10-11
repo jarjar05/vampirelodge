@@ -19,8 +19,11 @@ class Settings:
     session_lifetime_seconds: int
     session_cookie_secure: bool
     chroma_persist_directory: Path
+    llm_model: str
 
 
+# OpenAI's recommended model for new projects; override with LLM_MODEL (e.g. a lower-cost model).
+DEFAULT_LLM_MODEL = "gpt-6-astra"
 SQLITE_PREFIX = "sqlite:///"
 DEFAULT_DATABASE_URL = "sqlite:///data/app.db"
 
@@ -52,6 +55,7 @@ def get_settings() -> Settings:
         session_lifetime_seconds=int(os.getenv("SESSION_LIFETIME_SECONDS", "2592000")),
         session_cookie_secure=os.getenv("SESSION_COOKIE_SECURE", "false").lower() == "true",
         chroma_persist_directory=chroma_path,
+        llm_model=os.getenv("LLM_MODEL", DEFAULT_LLM_MODEL),
     )
 
 
