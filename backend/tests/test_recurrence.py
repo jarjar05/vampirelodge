@@ -107,3 +107,27 @@ def test_recurrence_rules_and_family_scoping(family, login):
     outsider.post("/api/families", json={"name": "Other Family"})
     assert outsider.post(f"/api/families/me/tasks/{task['id']}/stop-repeating").status_code == 404
     assert outsider.get("/api/families/me/tasks").json() == []
+
+
+def test_editing_a_repeating_task(family):
+    admin, _member = family
+    due = _in(1)
+    first = _create(admin, due_at=due.isoformat(), recurrence="weekly", location="Home")
+    path = f"/api/families/me/tasks/{first['id']}"
+
+    # A repeating task cannot lose its due date.
+    assert admin.patch(path, json={"due_at": None}).status_code == 422
+
+    # Moving it, and changing the place, carries on to the occurrences that follow.
+    moved = due + timedelta(days=2, hours=3)
+    admin.patch(path, json={"due_at": moved.isoformat(), "location": "Clinic"})
+    admin.post(f"{path}/complete")
+    following = _tasks(admin)[-1]
+    assert datetime.fromisoformat(following["due_at"]) == moved + timedelta(weeks=1)
+    assert following["location"] == "Clinic"
+
+    # Moving a later occurrence does the same from that point on.
+    moved_again = moved + timedelta(weeks=1, days=1)
+    admin.patch(f"/api/families/me/tasks/{following['id']}", json={"due_at": moved_again.isoformat()})
+    admin.post(f"/api/families/me/tasks/{following['id']}/complete")
+    assert datetime.fromisoformat(_tasks(admin)[-1]["due_at"]) == moved_again + timedelta(weeks=1)

@@ -120,6 +120,7 @@ These routes require an authenticated family member and only ever read or change
 
 - `GET /api/families/me/tasks` lists tasks, each with its activity history.
 - `POST /api/families/me/tasks` creates a task. Body: `{"title":"Pick up medication","detail":"Oak Pharmacy","location":null,"due_at":"2026-10-12T17:30:00+08:00","category":"Medication","priority":"High","assignee_id":null}`. Only `title` is required. `priority` is `High`, `Normal` (the default), or `Low`, and is chosen by whoever creates the task.
+- `PATCH /api/families/me/tasks/{task_id}` changes a task's `title`, `detail`, `location`, `due_at` or `priority`. Only the fields sent are changed; `null` clears `location` or `due_at` (a repeating task must keep its due date). Each change is recorded in the task's history, and moving the due date allows a new overdue reminder. Moving a repeating task's date carries on to the occurrences that follow.
 - `POST /api/families/me/tasks/{task_id}/assign` sets or clears the assignee. Body: `{"assignee_id":"<user id>"}` or `{"assignee_id":null}`. The assignee must belong to the family. There is no accept or decline step: an assigned task is simply that person's until it is completed or reassigned.
 - `POST /api/families/me/tasks/{task_id}/complete` and `/reopen` can be called by any family member.
 - `GET /api/families/me/activity?limit=20` returns the family's most recent task activity, newest first.

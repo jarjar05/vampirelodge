@@ -31,6 +31,16 @@ def next_due(anchor: datetime, after: datetime, recurrence: str) -> datetime:
     return anchor + step * periods
 
 
+def _on_schedule(anchor: datetime, moment: datetime, recurrence: str) -> bool:
+    """True when `moment` is one of the times the series started at `anchor` falls on."""
+    if moment < anchor:
+        return False
+    if recurrence == "monthly":
+        months = (moment.year - anchor.year) * 12 + moment.month - anchor.month
+        return anchor + relativedelta(months=months) == moment
+    return (moment - anchor) % _STEPS[recurrence] == timedelta(0)
+
+
 def start_series(task: Task) -> None:
     """Call once a new repeating task has an id."""
     task.series_id = task.id
@@ -42,6 +52,9 @@ def _schedule_next(database: Session, latest: Task, now: datetime) -> Task | Non
     if latest.status != "Completed" and latest.due_at > now:
         return None
     anchor = database.scalar(select(func.min(Task.due_at)).where(Task.series_id == latest.series_id)) or latest.due_at
+    # If someone moved the latest occurrence to a different day or time, the series continues from there.
+    if not _on_schedule(anchor, latest.due_at, latest.recurrence):
+        anchor = latest.due_at
     following = Task(
         family_id=latest.family_id,
         title=latest.title,

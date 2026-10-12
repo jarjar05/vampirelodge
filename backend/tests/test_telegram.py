@@ -485,3 +485,33 @@ def test_in_a_group_the_questions_are_answered_by_replying(family, telegram, dra
     _tap(ALICE_TG, telegram.messages[-1], "No date", chat_id=GROUP_CHAT)
     _tap(ALICE_TG, telegram.messages[-1], "No location", chat_id=GROUP_CHAT)
     assert telegram.messages[-1].text.startswith("Add this task?\n\nBuy milk")
+
+
+def test_a_press_telegram_no_longer_accepts_is_still_acted_on(family, telegram, drafting, monkeypatch):
+    admin, member = family
+    _link(admin, ALICE_TG)
+    telegram.messages.clear()
+    drafting.drafts = [_draft()]
+    drafting.suggest = member.user_id
+    _handle(_private(ALICE_TG, "Uniform sale"))
+
+    def too_old(callback_id, text=None):
+        raise telegram_api.TelegramError("Bad Request: query is too old and response timeout expired or query ID is invalid", 400)
+
+    monkeypatch.setattr(telegram_api, "answer_callback", too_old)
+    _handle(_press(ALICE_TG, telegram.messages[0].buttons[0][1]))
+    assert len(admin.get("/api/families/me/tasks").json()) == 1
+    # The message is updated even though the acknowledgement was refused.
+    assert "✅ Added: Buy school uniform" in telegram.edits[-1].text and telegram.edits[-1].buttons[0][0] == "Assign to Ben"
+
+
+def test_adding_acknowledges_the_press_before_the_slow_work(family, telegram, drafting):
+    admin, member = family
+    _link(admin, ALICE_TG)
+    telegram.messages.clear()
+    drafting.drafts = [_draft()]
+    drafting.suggest = member.user_id
+    _handle(_private(ALICE_TG, "Uniform sale"))
+    telegram.notices.clear()
+    _handle(_press(ALICE_TG, telegram.messages[0].buttons[0][1]))
+    assert telegram.notices == ["Adding…"]

@@ -10,6 +10,7 @@ import {
   ClipboardList,
   Clock3,
   FileText,
+  Pencil,
   HeartPulse,
   Home,
   MapPin,
@@ -40,6 +41,7 @@ import { DocumentImport } from "@/components/document-import";
 import { NotificationsMenu, ProfileMenu } from "@/components/header-menus";
 import { ProfileSettingsDialog } from "@/components/profile-settings-dialog";
 import { SidebarNav } from "@/components/sidebar-nav";
+import type { TaskChanges } from "@/api/care";
 import { useCareData, type CareData } from "@/hooks/use-care-data";
 import { useReveal } from "@/hooks/use-reveal";
 import { formatLongDate, getLocalDateInputValue, localInputsToIso, partOfDay } from "@/lib/dates";
@@ -721,6 +723,7 @@ function CarePlanPage({ care, currentUser }: { care: CareData; currentUser: Auth
           onClose={() => setSelectedTaskId(null)}
           onReassign={(assigneeId) => void care.assignTask(selectedTask.id, assigneeId)}
           onStopRepeating={() => void care.stopRepeating(selectedTask.id)}
+          onSave={(changes) => care.updateTask(selectedTask.id, changes)}
           onComplete={() => void toggleTask(selectedTask)}
         />
       )}
@@ -764,26 +767,29 @@ function TaskListItem({
   const isAtRisk = !task.complete && (riskAssessment?.reasons.length ?? 0) > 0;
 
   return (
-    <article className={`grid gap-3 px-4 py-4 sm:grid-cols-2 xl:grid-cols-[minmax(240px,1.6fr)_minmax(225px,1.35fr)_minmax(145px,1fr)_minmax(100px,0.8fr)] xl:items-center xl:px-5 ${isAtRisk ? "border-l-4 border-l-warning bg-warning/20 pl-3" : task.complete ? "bg-muted/30" : ""}`}>
-      <div className="flex min-w-0 items-start gap-3">
+    // Clicking anywhere on the row opens the task. The tick and the assignee control keep their own clicks,
+    // and the title is a real button so the task can also be opened from the keyboard.
+    <article
+      onClick={onOpen}
+      className={`row-lift grid cursor-pointer gap-3 px-4 py-4 sm:grid-cols-2 xl:grid-cols-[minmax(240px,1.6fr)_minmax(225px,1.35fr)_minmax(145px,1fr)_minmax(100px,0.8fr)] xl:items-center xl:px-5 ${isAtRisk ? "border-l-4 border-l-warning bg-warning/20 pl-3" : task.complete ? "bg-muted/30" : ""}`}
+    >
+      <div className="flex min-w-0 items-center gap-3">
         <button
           type="button"
-          onClick={onToggle}
+          onClick={(event) => { event.stopPropagation(); onToggle(); }}
           aria-label={`${task.complete ? "Reopen" : "Mark complete"}: ${task.title}`}
           aria-pressed={task.complete}
-          className={`task-check mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${task.complete ? "border-primary bg-primary text-primary-foreground" : "border-input bg-background hover:border-primary"}`}
+          className={`task-check flex size-5 shrink-0 items-center justify-center rounded-full border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${task.complete ? "border-primary bg-primary text-primary-foreground" : "border-input bg-background hover:border-primary"}`}
         >
           {/* Always present, so the tick can draw itself when the task is completed. */}
           <Check size={12} strokeWidth={3} aria-hidden="true" />
         </button>
-        <div className="min-w-0">
-          <button type="button" onClick={onOpen} data-done={task.complete} className="task-title text-left text-sm font-semibold hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            {task.title}
-          </button>
-          <button type="button" onClick={onOpen} className="mt-1 block text-xs font-medium text-primary link-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">View details</button>
-        </div>
+        <button type="button" onClick={(event) => { event.stopPropagation(); onOpen(); }} aria-haspopup="dialog" data-done={task.complete} className="task-title min-w-0 text-left text-sm font-semibold hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          {task.title}
+        </button>
       </div>
-      <div className="min-w-0 text-xs text-muted-foreground">
+      {/* Clicks here choose an assignee, so they do not also open the task. */}
+      <div className="min-w-0 text-xs text-muted-foreground" onClick={(event) => event.stopPropagation()}>
         <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.08em] xl:hidden">Assigned to</span>
         {isAssigning && !task.complete ? (
           <div className="rounded-lg bg-primary/5 p-2">
@@ -873,6 +879,7 @@ function describeActivity(item: TaskActivity) {
   switch (item.action) {
     case "Created": return `${item.actor} created this task`;
     case "Assigned":
+    case "Updated": return `${item.actor} ${item.detail.charAt(0).toLowerCase()}${item.detail.slice(1)}`;
     case "Reassigned":
       return item.detail.startsWith("Assigned to ") ? `${item.actor} assigned it to ${item.detail.slice("Assigned to ".length)}` : `${item.actor} unassigned it`;
     case "Accepted": return `${item.actor} accepted it`;
@@ -889,6 +896,7 @@ function TaskDetailDialog({
   onClose,
   onReassign,
   onStopRepeating,
+  onSave,
   onComplete,
 }: {
   task: CareTask;
@@ -897,9 +905,11 @@ function TaskDetailDialog({
   onClose: () => void;
   onReassign: (assigneeId: string) => void;
   onStopRepeating: () => void;
+  onSave: (changes: TaskChanges) => Promise<boolean | undefined>;
   onComplete: () => void;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const [isEditing, setIsEditing] = useState(false);
   const [isReassigning, setIsReassigning] = useState(false);
   const [selectedOwner, setSelectedOwner] = useState(task.assigneeId ?? "");
 
@@ -919,8 +929,11 @@ function TaskDetailDialog({
       aria-labelledby="task-detail-title"
       onClose={onClose}
       onClick={(event) => { if (event.target === event.currentTarget) event.currentTarget.close(); }}
-      className="fixed inset-0 m-auto max-h-[calc(100%-2rem)] w-[calc(100%-2rem)] max-w-lg overflow-y-auto rounded-xl border border-border bg-card p-0 text-foreground shadow-xl backdrop:bg-foreground/35"
+      className={`fixed inset-0 m-auto max-h-[calc(100%-2rem)] w-[calc(100%-2rem)] max-w-lg rounded-xl border border-border bg-card p-0 text-foreground shadow-xl backdrop:bg-foreground/35 ${isEditing ? "overflow-y-auto sm:overflow-visible" : "overflow-y-auto"}`}
     >
+      {isEditing ? (
+        <TaskEditForm task={task} onCancel={() => setIsEditing(false)} onSave={async (changes) => { if (await onSave(changes)) setIsEditing(false); }} />
+      ) : (
       <div className="p-5 sm:p-7">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
@@ -975,6 +988,7 @@ function TaskDetailDialog({
             {!task.complete && (
               <Button size="sm" variant="outline" aria-expanded={isReassigning} onClick={() => { setSelectedOwner(task.assigneeId ?? ""); setIsReassigning((current) => !current); }}>{assignedMember ? "Reassign" : "Assign"}</Button>
             )}
+            {!task.complete && <Button size="sm" variant="outline" onClick={() => setIsEditing(true)}><Pencil size={14} aria-hidden="true" />Edit</Button>}
           </div>
           {isReassigning && !task.complete && (
             <div className="mt-3 flex flex-col gap-2 rounded-lg bg-muted/50 p-3 sm:flex-row">
@@ -1011,7 +1025,84 @@ function TaskDetailDialog({
           </details>
         )}
       </div>
+      )}
     </dialog>
+  );
+}
+
+/** The task's details as a form, shown in place of the details view while editing. */
+function TaskEditForm({ task, onCancel, onSave }: { task: CareTask; onCancel: () => void; onSave: (changes: TaskChanges) => Promise<void> }) {
+  const due = task.dueAt ? new Date(task.dueAt) : null;
+  const [title, setTitle] = useState(task.title);
+  const [detail, setDetail] = useState(task.detail);
+  const [location, setLocation] = useState(task.location ?? "");
+  const [hasDueDate, setHasDueDate] = useState(due !== null);
+  const [date, setDate] = useState(() => getLocalDateInputValue(due ?? new Date()));
+  const [time, setTime] = useState(() => due ? `${String(due.getHours()).padStart(2, "0")}:${String(due.getMinutes()).padStart(2, "0")}` : "18:00");
+  const [priority, setPriority] = useState(task.priority);
+  const [isSaving, setIsSaving] = useState(false);
+  const inputClassName = "mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2.5 font-normal focus:outline-none focus:ring-2 focus:ring-ring";
+
+  const submit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setIsSaving(true);
+    await onSave({ title: title.trim(), detail: detail.trim(), location: location.trim() || null, dueAt: hasDueDate ? localInputsToIso(date, time) : null, priority });
+    setIsSaving(false);
+  };
+
+  return (
+    <form onSubmit={submit} className="grid gap-4 p-5 sm:grid-cols-2 sm:p-7">
+      <h2 id="task-detail-title" className="font-display text-2xl font-semibold sm:col-span-2">Edit task</h2>
+      <label className="text-sm font-medium sm:col-span-2">Task title
+        <input required autoFocus maxLength={100} value={title} onChange={(event) => setTitle(event.target.value)} className={inputClassName} />
+      </label>
+      <label className="text-sm font-medium sm:col-span-2">Details <span className="font-normal text-muted-foreground">(optional)</span>
+        <textarea rows={2} maxLength={500} value={detail} onChange={(event) => setDetail(event.target.value)} className={inputClassName} />
+      </label>
+      <label className="text-sm font-medium sm:col-span-2">Location <span className="font-normal text-muted-foreground">(optional)</span>
+        <input maxLength={120} value={location} onChange={(event) => setLocation(event.target.value)} className={inputClassName} />
+      </label>
+      {hasDueDate && (
+        <>
+          <div className="text-sm font-medium">
+            <span id="edit-task-date-label">Due date</span>
+            <DatePicker labelledBy="edit-task-date-label" value={date} onChange={setDate} />
+          </div>
+          <div className="text-sm font-medium">
+            <span id="edit-task-time-label">Time</span>
+            <TimePicker labelledBy="edit-task-time-label" value={time} onChange={setTime} />
+          </div>
+        </>
+      )}
+      {/* A repeating task counts from its due date, so it cannot be without one. */}
+      {!task.recurrence && (
+        <label className="flex items-center gap-2 text-sm text-muted-foreground sm:col-span-2">
+          <input type="checkbox" checked={!hasDueDate} onChange={(event) => setHasDueDate(!event.target.checked)} className="size-4 accent-primary" />
+          No due date
+        </label>
+      )}
+      <div className="text-sm font-medium sm:col-span-2">
+        <span id="edit-task-priority-label">Priority</span>
+        <div role="radiogroup" aria-labelledby="edit-task-priority-label" className="mt-1.5 grid grid-cols-3 gap-1 rounded-lg border border-border bg-muted/60 p-1">
+          {taskPriorities.map((option) => (
+            <button
+              key={option}
+              type="button"
+              role="radio"
+              aria-checked={priority === option}
+              onClick={() => setPriority(option)}
+              className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${priority === option ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              <span aria-hidden="true" className={`size-2 rounded-full ${priorityDots[option]}`} />{option}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="flex justify-end gap-2 sm:col-span-2">
+        <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
+        <Button type="submit" disabled={isSaving || !title.trim()}>{isSaving ? "Saving…" : "Save changes"}</Button>
+      </div>
+    </form>
   );
 }
 

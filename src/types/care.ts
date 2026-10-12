@@ -28,7 +28,7 @@ export type FamilyMember = {
 };
 
 /** "Accepted" and "Declined" are no longer recorded, but still appear in older history. */
-export type TaskActivityAction = "Created" | "Assigned" | "Accepted" | "Declined" | "Reassigned" | "Completed" | "Reopened";
+export type TaskActivityAction = "Created" | "Assigned" | "Accepted" | "Declined" | "Reassigned" | "Updated" | "Completed" | "Reopened";
 
 export type TaskActivity = {
   id: string;

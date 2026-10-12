@@ -15,6 +15,7 @@ import {
   type MemberChanges,
   type NewAppointment,
   type NewTask,
+  type TaskChanges,
 } from "@/api/care";
 import type { CareTask } from "@/types/care";
 
@@ -142,6 +143,8 @@ export function useCareData() {
       return toTask(created, membersById);
     }),
     assignTask: (taskId: string, assigneeId: string | null) => run(async () => applyTask(await careApi.assignTask(taskId, assigneeId))),
+    /** Resolves to true when the changes were saved. */
+    updateTask: (taskId: string, changes: TaskChanges) => run(async () => { applyTask(await careApi.updateTask(taskId, changes)); return true; }),
     stopRepeating: (taskId: string) => run(async () => { await careApi.stopRepeating(taskId); setRawTasks(await careApi.listTasks()); }),
     completeTask: taskAction("complete"),
     reopenTask: taskAction("reopen"),

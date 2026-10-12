@@ -131,6 +131,25 @@ a:active {
 .stagger > :nth-child(9) { --stagger-index: 8; }
 .stagger > :nth-child(10) { --stagger-index: 9; }
 
+/* A clickable row in a list rises like a card. The lift uses "transform" so it does not disturb the staggered
+   entrance above, which uses "translate". Both sets of timings are listed because such a row needs them together. */
+.row-lift,
+.stagger > .row-lift {
+  transition:
+    opacity 0.6s var(--ease-out) calc(120ms + var(--stagger-index, 10) * 55ms),
+    translate 0.6s var(--ease-out) calc(120ms + var(--stagger-index, 10) * 55ms),
+    transform 0.4s var(--ease-out),
+    box-shadow 0.4s var(--ease-out),
+    border-radius 0.4s var(--ease-out),
+    background-color 0.3s;
+}
+.row-lift:hover {
+  z-index: 1;
+  transform: translateY(-2px);
+  border-radius: 0.875rem;
+  box-shadow: 0 10px 22px -16px hsl(var(--foreground) / 0.28), 0 0 0 1px hsl(var(--primary) / 0.22);
+}
+
 /* Progress bars grow from the left when their card is revealed. */
 .bar-fill {
   transform-origin: 0 50%;
@@ -172,6 +191,14 @@ a:active {
   }
 
   /* A clickable card rises with a soft shadow. */
+
+  /* The lifted row's background sits in this layer so a row that already has a tint, such as an at-risk task, keeps it. */
+  .row-lift {
+    position: relative;
+  }
+  .row-lift:hover {
+    background-color: hsl(var(--card));
+  }
 
   /* An underline that draws in from the left and leaves to the right. */
   .link-underline {

@@ -12,7 +12,7 @@ TASK_PRIORITIES = ("High", "Normal", "Low")
 # "In progress" belonged to the old accept step. It is no longer set, but stays valid for rows that predate its removal.
 TASK_STATUSES = ("Open", "In progress", "Completed")
 # "Accepted" and "Declined" are no longer recorded; they remain so that older history still reads correctly.
-TASK_ACTIONS = ("Created", "Assigned", "Accepted", "Declined", "Reassigned", "Completed", "Reopened")
+TASK_ACTIONS = ("Created", "Assigned", "Accepted", "Declined", "Reassigned", "Updated", "Completed", "Reopened")
 
 
 def _utc_now() -> datetime:

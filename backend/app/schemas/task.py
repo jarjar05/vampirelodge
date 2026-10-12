@@ -41,6 +41,23 @@ class TaskCreateRequest(BaseModel):
         return (location or "").strip() or None
 
 
+class TaskUpdateRequest(BaseModel):
+    """Changes to a task's details. Only the fields that are sent are changed; due_at and location accept null to clear them."""
+
+    title: str | None = Field(default=None, min_length=1, max_length=100)
+    detail: str | None = Field(default=None, max_length=500)
+    location: str | None = Field(default=None, max_length=120)
+    due_at: datetime | None = None
+    priority: TaskPriority | None = None
+
+    @field_validator("title")
+    @classmethod
+    def normalize_title(cls, title: str | None) -> str | None:
+        if title is not None and not title.strip():
+            raise ValueError("Task title must not be empty")
+        return title.strip() if title is not None else None
+
+
 class TaskAssignRequest(BaseModel):
     assignee_id: uuid.UUID | None
 

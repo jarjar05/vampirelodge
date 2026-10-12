@@ -484,10 +484,29 @@ def _handle_callback(database: Session, callback: dict[str, Any]) -> None:
     chat_id, message_id = (message.get("chat") or {}).get("id"), message.get("message_id")
     parts = str(callback.get("data") or "").split(":")
 
+    def acknowledge(notice: str | None) -> None:
+        # Telegram only accepts this for a short while after the press. If the moment has passed, for example
+        # because the server was restarting, the press is still acted on and the message still updated.
+        try:
+            telegram_api.answer_callback(callback_id, notice)
+        except TelegramError:
+            pass
+
     user = _linked_user(database, sender.get("id", 0))
     if user is None:
-        telegram_api.answer_callback(callback_id, "Link your account in the app first.")
+        acknowledge("Link your account in the app first.")
         return
+    # Adding a task asks the model for an assignee, which can take several seconds, so the button's spinner is
+    # stopped first. Only when the press will really add something: otherwise the reason it will not is the notice.
+    is_slow = False
+    if len(parts) == 3 and parts[:2] == ["d", "add"]:
+        try:
+            draft = database.get(TelegramDraft, uuid.UUID(parts[2]))
+        except ValueError:
+            draft = None
+        is_slow = draft is not None and draft.user_id == user.id and draft.step is None and draft.task_id is None
+    if is_slow:
+        acknowledge("Adding…")
     try:
         if len(parts) == 3 and parts[0] == "t" and parts[1] == "done":
             notice, new_text = _complete_from_reminder(database, user, parts[2])
@@ -502,7 +521,8 @@ def _handle_callback(database: Session, callback: dict[str, Any]) -> None:
         # The button carried something that is not an id.
         notice, new_text, buttons = "That button no longer works.", None, []
 
-    telegram_api.answer_callback(callback_id, notice)
+    if not is_slow:
+        acknowledge(notice)
     if new_text is not None and chat_id is not None and message_id is not None:
         telegram_api.edit_message(chat_id, message_id, new_text, buttons)
 

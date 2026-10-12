@@ -98,6 +98,8 @@ function toKnowledgeDocument(document: ApiKnowledgeDocument): KnowledgeDocument 
 }
 
 export type NewTask = { title: string; detail: string; location?: string; dueAt: string; priority: CareTask["priority"]; recurrence?: TaskRecurrence | null };
+/** Changes to a task's details. A null due time or location clears it. */
+export type TaskChanges = { title: string; detail: string; location: string | null; dueAt: string | null; priority: CareTask["priority"] };
 export type NewAppointment = { title: string; place?: string; startsAt: string; attendeeId: string | null };
 export type MemberChanges = { relationshipLabel?: string | null; availability?: Availability; availabilityNote?: string | null };
 
@@ -141,6 +143,10 @@ export const careApi = {
   }),
   taskAction: (taskId: string, action: "complete" | "reopen") =>
     api<ApiTask>(`/families/me/tasks/${taskId}/${action}`, { method: "POST" }),
+  updateTask: (taskId: string, changes: TaskChanges) => api<ApiTask>(`/families/me/tasks/${taskId}`, {
+    method: "PATCH",
+    body: { title: changes.title, detail: changes.detail, location: changes.location, due_at: changes.dueAt, priority: changes.priority },
+  }),
   stopRepeating: (taskId: string) => api<ApiTask>(`/families/me/tasks/${taskId}/stop-repeating`, { method: "POST" }),
   listActivity: () => api<ApiFamilyActivity[]>("/families/me/activity?limit=20"),
   /** Reads an uploaded file or pasted text and drafts tasks from it. Nothing is created. */
@@ -295,6 +301,7 @@ const activityVerbs: Record<TaskActivityAction, string> = {
   Created: "added",
   Assigned: "updated who is handling",
   Reassigned: "reassigned",
+  Updated: "edited",
   Accepted: "accepted",
   Declined: "declined",
   Completed: "completed",

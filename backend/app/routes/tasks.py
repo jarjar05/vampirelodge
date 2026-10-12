@@ -26,6 +26,7 @@ from app.schemas.task import (
     TaskAssignRequest,
     TaskCreateRequest,
     TaskResponse,
+    TaskUpdateRequest,
 )
 from app.services import assignment, day_plan, document_tasks, recurrence
 from app.services.llm import LLMUnavailable
@@ -124,6 +125,54 @@ def create_task(
     if payload.recurrence:
         database.flush()
         recurrence.start_series(task)
+    return _save(database, task)
+
+
+def _same_moment(first: datetime | None, second: datetime | None) -> bool:
+    if first is None or second is None:
+        return first is second
+    return first.astimezone(timezone.utc) == second.astimezone(timezone.utc)
+
+
+@router.patch("/tasks/{task_id}", response_model=TaskResponse)
+def update_task(
+    task_id: uuid.UUID,
+    payload: TaskUpdateRequest,
+    family_access: FamilyMemberContext,
+    user: AuthenticatedUser,
+    database: DatabaseSession,
+) -> TaskResponse:
+    """Change a task's name, details, place, due time or priority. Anyone in the family can."""
+    task = _get_family_task(database, family_access.family.id, task_id)
+    sent = payload.model_fields_set
+    changed: list[str] = []
+
+    if "title" in sent and payload.title is not None and payload.title != task.title:
+        task.title = payload.title
+        changed.append("name")
+    if "due_at" in sent and not _same_moment(payload.due_at, task.due_at):
+        if payload.due_at is None and task.recurrence:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="A repeating task needs a due date. Stop it repeating first.")
+        task.due_at = payload.due_at
+        # The new time has not been reminded about yet.
+        task.overdue_reminded_at = None
+        changed.append("due date")
+    if "location" in sent:
+        location = (payload.location or "").strip() or None
+        if location != task.location:
+            task.location = location
+            changed.append("location")
+    if "detail" in sent and payload.detail is not None and payload.detail.strip() != task.detail:
+        task.detail = payload.detail.strip()
+        changed.append("details")
+    if "priority" in sent and payload.priority is not None and payload.priority != task.priority:
+        task.priority = payload.priority
+        changed.append("priority")
+
+    if not changed:
+        return _task_response(task)
+    listed = changed[0] if len(changed) == 1 else f"{', '.join(changed[:-1])} and {changed[-1]}"
+    record_activity(task, user.id, "Updated", f"Changed the {listed}")
     return _save(database, task)
 
 

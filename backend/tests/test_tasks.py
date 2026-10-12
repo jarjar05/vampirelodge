@@ -154,3 +154,54 @@ def test_creator_chooses_one_of_three_priorities(family):
         assert _create_task(admin, priority=priority)["priority"] == priority
     for priority in ("Urgent", "Medium", ""):
         assert admin.post("/api/families/me/tasks", json={"title": "x", "priority": priority}).status_code == 422, priority
+
+
+def test_editing_a_tasks_details(family, login):
+    admin, member = family
+    task = _create_task(admin, detail="Oak Pharmacy", location="Oak Pharmacy", due_at="2030-01-01T09:00:00Z", assignee_id=member.user_id)
+    path = f"/api/families/me/tasks/{task['id']}"
+
+    # Anyone in the family can edit; only what is sent changes.
+    updated = member.patch(path, json={"due_at": "2030-01-03T17:30:00+08:00", "location": "Guardian, Tampines Mall"}).json()
+    assert updated["due_at"].startswith("2030-01-03T09:30:00") and updated["location"] == "Guardian, Tampines Mall"
+    assert updated["title"] == "Pick up medication" and updated["detail"] == "Oak Pharmacy" and updated["assignee_id"] == member.user_id
+    assert updated["activity"][-1]["action"] == "Updated"
+    assert updated["activity"][-1]["detail"] == "Changed the due date and location" and updated["activity"][-1]["actor_name"] == "Ben"
+
+    updated = admin.patch(path, json={"title": "  Collect medication ", "detail": "", "priority": "High"}).json()
+    assert (updated["title"], updated["detail"], updated["priority"]) == ("Collect medication", "", "High")
+    assert updated["activity"][-1]["detail"] == "Changed the name, details and priority"
+
+    # Sending the same values again records nothing, even when the time is written in another zone.
+    history = len(updated["activity"])
+    same = admin.patch(path, json={"title": "Collect medication", "due_at": "2030-01-03T09:30:00Z", "location": "Guardian, Tampines Mall"}).json()
+    assert len(same["activity"]) == history
+
+    # The place and the due date can be cleared.
+    cleared = admin.patch(path, json={"location": "  ", "due_at": None}).json()
+    assert cleared["location"] is None and cleared["due_at"] is None
+
+    for bad in ({"title": "   "}, {"title": "x" * 101}, {"priority": "Urgent"}, {"due_at": "next week"}):
+        assert admin.patch(path, json=bad).status_code == 422, bad
+
+    outsider = login("Olivia")
+    outsider.post("/api/families", json={"name": "Other Family"})
+    assert outsider.patch(path, json={"title": "Hijacked"}).status_code == 404
+    assert admin.get("/api/families/me/tasks").json()[0]["title"] == "Collect medication"
+
+
+def test_moving_an_overdue_task_allows_a_new_reminder(family):
+    from sqlalchemy import text
+
+    from app.database import engine
+
+    admin, member = family
+    task = _create_task(admin, due_at="2030-01-01T09:00:00Z", assignee_id=member.user_id)
+    with engine.begin() as connection:
+        connection.execute(text("UPDATE tasks SET overdue_reminded_at = '2030-01-01 10:00:00'"))
+    admin.patch(f"/api/families/me/tasks/{task['id']}", json={"location": "Somewhere"})
+    with engine.begin() as connection:
+        assert connection.execute(text("SELECT overdue_reminded_at FROM tasks")).scalar() is not None
+    admin.patch(f"/api/families/me/tasks/{task['id']}", json={"due_at": "2030-01-02T09:00:00Z"})
+    with engine.begin() as connection:
+        assert connection.execute(text("SELECT overdue_reminded_at FROM tasks")).scalar() is None
