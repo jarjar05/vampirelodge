@@ -19,6 +19,8 @@ from app.schemas.task import (
     DayPlanStepResponse,
     DocumentTasksRequest,
     DocumentTasksResponse,
+    QuickSuggestionResponse,
+    TaskConflictsResponse,
     TaskDraftResponse,
     TaskAvailabilityResponse,
     FamilyActivityResponse,
@@ -28,7 +30,7 @@ from app.schemas.task import (
     TaskResponse,
     TaskUpdateRequest,
 )
-from app.services import assignment, day_plan, document_tasks, recurrence
+from app.services import assignment, day_plan, document_tasks, recurrence, telegram_bot
 from app.services.llm import LLMUnavailable
 from app.services.tasks import get_family_member, record_activity
 
@@ -56,10 +58,8 @@ def _task_response(task: Task) -> TaskResponse:
         location=task.location,
         due_at=task.due_at,
         assignee_id=task.assignee_id,
-        category=task.category,
         priority=task.priority,
         status=task.status,
-        recipient=task.recipient,
         created_at=task.created_at,
         completed_at=task.completed_at,
         recurrence=task.recurrence,
@@ -112,9 +112,7 @@ def create_task(
         location=payload.location,
         due_at=payload.due_at,
         assignee_id=assignee.id if assignee else None,
-        category=payload.category,
         priority=payload.priority,
-        recipient=payload.recipient.strip(),
         created_by_id=user.id,
         recurrence=payload.recurrence,
     )
@@ -125,7 +123,9 @@ def create_task(
     if payload.recurrence:
         database.flush()
         recurrence.start_series(task)
-    return _save(database, task)
+    response = _save(database, task)
+    telegram_bot.notify_assigned(database, task, user)
+    return response
 
 
 def _same_moment(first: datetime | None, second: datetime | None) -> bool:
@@ -168,12 +168,30 @@ def update_task(
     if "priority" in sent and payload.priority is not None and payload.priority != task.priority:
         task.priority = payload.priority
         changed.append("priority")
+    if "recurrence" in sent and payload.recurrence != task.recurrence:
+        if payload.recurrence is not None and task.due_at is None:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="A repeating task needs a due date")
+        recurrence.set_recurrence(database, task, payload.recurrence)
+        changed.append("repeat")
 
     if not changed:
         return _task_response(task)
     listed = changed[0] if len(changed) == 1 else f"{', '.join(changed[:-1])} and {changed[-1]}"
     record_activity(task, user.id, "Updated", f"Changed the {listed}")
-    return _save(database, task)
+    response = _save(database, task)
+    telegram_bot.notify_updated(database, task, user, listed)
+    return response
+
+
+@router.delete("/tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_task(task_id: uuid.UUID, family_access: FamilyMemberContext, database: DatabaseSession) -> None:
+    """Remove a task and its history. Deleting a repeating task also stops it repeating; earlier occurrences are kept."""
+    task = _get_family_task(database, family_access.family.id, task_id)
+    if task.recurrence:
+        # Otherwise the series would simply produce the next occurrence in its place.
+        recurrence.stop_series(database, task)
+    database.delete(task)
+    database.commit()
 
 
 @router.post("/tasks/{task_id}/assign", response_model=TaskResponse)
@@ -203,7 +221,39 @@ def assign_task(
     # A new assignee has not been reminded yet.
     task.overdue_reminded_at = None
     record_activity(task, user.id, action, detail)
-    return _save(database, task)
+    response = _save(database, task)
+    telegram_bot.notify_assigned(database, task, user)
+    return response
+
+
+@router.get("/tasks/conflicts", response_model=TaskConflictsResponse)
+def list_task_conflicts(
+    family_access: FamilyMemberContext,
+    database: DatabaseSession,
+    timezone_name: Annotated[str | None, Query(alias="timezone", max_length=64)] = None,
+) -> TaskConflictsResponse:
+    """Open tasks whose assignee is busy when the task is due, from linked calendars. No model call."""
+    clashes = assignment.assignee_clashes(database, family_access.family.id, day_plan.resolve_timezone(timezone_name))
+    return TaskConflictsResponse(task_ids=sorted(clashes, key=str))
+
+
+@router.get("/tasks/{task_id}/quick-suggestion", response_model=QuickSuggestionResponse)
+def quick_suggestion(
+    task_id: uuid.UUID,
+    family_access: FamilyMemberContext,
+    database: DatabaseSession,
+    timezone_name: Annotated[str | None, Query(alias="timezone", max_length=64)] = None,
+) -> QuickSuggestionResponse:
+    """Who should take this task by plain rules: free at that time, best placed by role, fewest open tasks. No model call."""
+    task = _get_family_task(database, family_access.family.id, task_id)
+    zone = day_plan.resolve_timezone(timezone_name)
+    busy = assignment.members_busy_at_task_time(database, task, zone)
+    suggestion = assignment.suggest_without_model(database, task, zone)
+    return QuickSuggestionResponse(
+        member_id=suggestion.member_id if suggestion else None,
+        reason=suggestion.reason if suggestion else "",
+        busy_member_ids=sorted(busy, key=str),
+    )
 
 
 @router.get("/tasks/{task_id}/availability", response_model=TaskAvailabilityResponse)
@@ -213,7 +263,7 @@ def read_task_availability(
     database: DatabaseSession,
     timezone_name: Annotated[str | None, Query(alias="timezone", max_length=64)] = None,
 ) -> TaskAvailabilityResponse:
-    """Who is busy when this task is due, from app appointments and linked calendars. No model call is made."""
+    """Who is busy when this task is due, from linked calendars. No model call is made."""
     task = _get_family_task(database, family_access.family.id, task_id)
     busy = assignment.members_busy_at_task_time(database, task, day_plan.resolve_timezone(timezone_name))
     return TaskAvailabilityResponse(busy_member_ids=sorted(busy, key=str))
@@ -258,7 +308,7 @@ def draft_tasks_from_document(payload: DocumentTasksRequest, family_access: Fami
     return DocumentTasksResponse(
         summary=drafts.summary,
         tasks=[
-            TaskDraftResponse(title=draft.title, detail=draft.detail, location=draft.location, due_date=draft.due_date, due_time=draft.due_time, priority=draft.priority)
+            TaskDraftResponse(title=draft.title, detail=draft.detail, location=draft.location, due_date=draft.due_date, due_time=draft.due_time, priority=draft.priority, recurrence=draft.recurrence)
             for draft in drafts.tasks
         ],
     )

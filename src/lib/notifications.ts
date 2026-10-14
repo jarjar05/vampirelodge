@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import type { CareAppointment, CareTask } from "@/types/care";
+import type { CareTask } from "@/types/care";
 
 export type CareNotification = {
   id: string;
@@ -10,12 +10,12 @@ export type CareNotification = {
   tone: "alert" | "warning" | "info";
 };
 
-const soonMs = 36 * 60 * 60_000;
+// How long "X gave you this" and "X changed this" stay in the list if not dismissed.
+const recentMs = 48 * 60 * 60_000;
 
 /** What needs the signed-in user's attention right now, most urgent first. Derived from live data, so items clear themselves once handled. */
 export function buildNotifications(
   tasks: readonly CareTask[],
-  appointments: readonly CareAppointment[],
   currentUserId: string,
   now = new Date(),
 ): CareNotification[] {
@@ -35,6 +35,26 @@ export function buildNotifications(
     notifications.push({ id: `due-${task.id}`, title: task.title, detail: `Yours · due ${task.time}`, to: "/tasks?filter=My%20Tasks", tone: "warning" });
   }
 
+  // Something someone else did to one of my tasks in the last two days: gave it to me, or changed it.
+  for (const task of myTasks) {
+    const latest = [...task.activity].reverse().find((item) =>
+      (item.action === "Assigned" || item.action === "Reassigned" || item.action === "Updated")
+      && item.actorId !== currentUserId
+      && now.getTime() - new Date(item.at).getTime() <= recentMs);
+    if (!latest) continue;
+    const firstName = latest.actor.split(/\s+/)[0];
+    notifications.push({
+      // One per event, so dismissing it does not hide the next change.
+      id: `event-${latest.id}`,
+      title: task.title,
+      detail: latest.action === "Updated"
+        ? `${firstName} ${latest.detail.charAt(0).toLowerCase()}${latest.detail.slice(1)}`
+        : `${firstName} gave you this · due ${task.time}`,
+      to: "/tasks?filter=My%20Tasks",
+      tone: "info",
+    });
+  }
+
   const unassigned = tasks.filter((task) => !task.complete && task.assigneeId === null);
   if (unassigned.length > 0) {
     notifications.push({
@@ -47,17 +67,7 @@ export function buildNotifications(
     });
   }
 
-  for (const appointment of appointments) {
-    const startsIn = new Date(appointment.startsAt).getTime() - now.getTime();
-    if (startsIn < 0 || startsIn > soonMs) continue;
-    notifications.push({
-      id: `appointment-${appointment.id}`,
-      title: appointment.title,
-      detail: `${appointment.date} · ${appointment.time}${appointment.place ? ` · ${appointment.place}` : ""}`,
-      to: "/appointments",
-      tone: "info",
-    });
-  }
+
 
   return notifications;
 }

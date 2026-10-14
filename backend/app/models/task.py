@@ -7,7 +7,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base, UTCDateTime
 from app.models.user import User
 
-TASK_CATEGORIES = ("Appointment", "Medication", "Check-in")
 TASK_PRIORITIES = ("High", "Normal", "Low")
 # "In progress" belonged to the old accept step. It is no longer set, but stays valid for rows that predate its removal.
 TASK_STATUSES = ("Open", "In progress", "Completed")
@@ -22,7 +21,6 @@ def _utc_now() -> datetime:
 class Task(Base):
     __tablename__ = "tasks"
     __table_args__ = (
-        CheckConstraint("category IN ('Appointment', 'Medication', 'Check-in')", name="ck_tasks_category"),
         CheckConstraint("priority IN ('High', 'Normal', 'Low')", name="ck_tasks_priority"),
         CheckConstraint("status IN ('Open', 'In progress', 'Completed')", name="ck_tasks_status"),
     )
@@ -34,10 +32,8 @@ class Task(Base):
     location: Mapped[str | None] = mapped_column(String(120), nullable=True)
     due_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
     assignee_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
-    category: Mapped[str] = mapped_column(String(16), nullable=False, default="Check-in")
     priority: Mapped[str] = mapped_column(String(8), nullable=False, default="Normal")
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="Open")
-    recipient: Mapped[str] = mapped_column(String(80), nullable=False, default="Shared household")
     created_by_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False, server_default=func.now())
     completed_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)

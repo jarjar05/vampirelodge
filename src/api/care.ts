@@ -1,13 +1,14 @@
 import { api } from "@/api/client";
-import { formatClock, formatDay, formatDue, formatRelative, formatTimestamp } from "@/lib/dates";
+import { formatDue, formatRelative, formatTimestamp } from "@/lib/dates";
 import type {
   AssignmentSuggestion,
   CalendarStatus,
   DayPlan,
   DocumentDrafts,
+  FamilySchedule,
+  QuickSuggestion,
   TaskRecurrence,
   Availability,
-  CareAppointment,
   CareTask,
   Family,
   FamilyActivityItem,
@@ -49,24 +50,13 @@ export type ApiTask = {
   location: string | null;
   due_at: string | null;
   assignee_id: string | null;
-  category: CareTask["category"];
   /** Older data may still hold the retired "Urgent" level. */
   priority: CareTask["priority"] | "Urgent";
   status: CareTask["status"];
-  recipient: string;
   created_at: string;
   completed_at: string | null;
   recurrence: TaskRecurrence | null;
   activity: ApiActivity[];
-};
-
-export type ApiAppointment = {
-  id: string;
-  title: string;
-  place: string | null;
-  starts_at: string;
-  attendee_id: string | null;
-  related_task_id: string | null;
 };
 
 export type ApiFamilyActivity = ApiActivity & { task_id: string; task_title: string };
@@ -99,9 +89,8 @@ function toKnowledgeDocument(document: ApiKnowledgeDocument): KnowledgeDocument 
 
 export type NewTask = { title: string; detail: string; location?: string; dueAt: string; priority: CareTask["priority"]; recurrence?: TaskRecurrence | null };
 /** Changes to a task's details. A null due time or location clears it. */
-export type TaskChanges = { title: string; detail: string; location: string | null; dueAt: string | null; priority: CareTask["priority"] };
-export type NewAppointment = { title: string; place?: string; startsAt: string; attendeeId: string | null };
-export type MemberChanges = { relationshipLabel?: string | null; availability?: Availability; availabilityNote?: string | null };
+export type TaskChanges = { title: string; detail: string; location: string | null; dueAt: string | null; priority: CareTask["priority"]; recurrence: TaskRecurrence | null };
+export type MemberChanges = { relationshipLabel?: string | null; availability?: Availability; availabilityNote?: string | null; role?: "ADMIN" | "MEMBER" };
 
 type ApiCalendarStatus = { connected: boolean; synced_at: string | null; event_count: number | null; error: string | null };
 
@@ -128,6 +117,7 @@ export const careApi = {
       ...(changes.relationshipLabel !== undefined && { relationship_label: changes.relationshipLabel }),
       ...(changes.availability !== undefined && { availability: changes.availability }),
       ...(changes.availabilityNote !== undefined && { availability_note: changes.availabilityNote }),
+      ...(changes.role !== undefined && { role: changes.role }),
     },
   }),
   removeMember: (userId: string) => api(`/families/me/members/${userId}`, { method: "DELETE" }),
@@ -145,13 +135,22 @@ export const careApi = {
     api<ApiTask>(`/families/me/tasks/${taskId}/${action}`, { method: "POST" }),
   updateTask: (taskId: string, changes: TaskChanges) => api<ApiTask>(`/families/me/tasks/${taskId}`, {
     method: "PATCH",
-    body: { title: changes.title, detail: changes.detail, location: changes.location, due_at: changes.dueAt, priority: changes.priority },
+    body: { title: changes.title, detail: changes.detail, location: changes.location, due_at: changes.dueAt, priority: changes.priority, recurrence: changes.recurrence },
   }),
+  deleteTask: (taskId: string) => api(`/families/me/tasks/${taskId}`, { method: "DELETE" }),
+  /** Ids of open tasks whose assignee is busy when the task is due. No AI call is made. */
+  listTaskConflicts: async (): Promise<string[]> =>
+    (await api<{ task_ids: string[] }>(`/families/me/tasks/conflicts?timezone=${encodeURIComponent(localTimeZone())}`)).task_ids,
+  /** Who should take the task by plain rules: free then, best placed by role, fewest open tasks. No AI call is made. */
+  quickSuggestion: async (taskId: string): Promise<QuickSuggestion> => {
+    const suggestion = await api<{ member_id: string | null; reason: string; busy_member_ids: string[] }>(`/families/me/tasks/${taskId}/quick-suggestion?timezone=${encodeURIComponent(localTimeZone())}`);
+    return { memberId: suggestion.member_id, reason: suggestion.reason, busyMemberIds: suggestion.busy_member_ids };
+  },
   stopRepeating: (taskId: string) => api<ApiTask>(`/families/me/tasks/${taskId}/stop-repeating`, { method: "POST" }),
   listActivity: () => api<ApiFamilyActivity[]>("/families/me/activity?limit=20"),
   /** Reads an uploaded file or pasted text and drafts tasks from it. Nothing is created. */
   draftTasksFromDocument: async (source: { filename: string; contentType: string; dataBase64: string } | { text: string }): Promise<DocumentDrafts> => {
-    const drafts = await api<{ summary: string; tasks: { title: string; detail: string; location: string | null; due_date: string | null; due_time: string | null; priority: "High" | "Normal" | "Low" }[] }>("/families/me/tasks/from-document", {
+    const drafts = await api<{ summary: string; tasks: { title: string; detail: string; location: string | null; due_date: string | null; due_time: string | null; priority: "High" | "Normal" | "Low"; recurrence: TaskRecurrence | null }[] }>("/families/me/tasks/from-document", {
       method: "POST",
       body: "text" in source
         ? { text: source.text, timezone: localTimeZone() }
@@ -159,10 +158,10 @@ export const careApi = {
     });
     return {
       summary: drafts.summary,
-      tasks: drafts.tasks.map((task) => ({ title: task.title, detail: task.detail, location: task.location, dueDate: task.due_date, dueTime: task.due_time?.slice(0, 5) ?? null, priority: task.priority })),
+      tasks: drafts.tasks.map((task) => ({ title: task.title, detail: task.detail, location: task.location, dueDate: task.due_date, dueTime: task.due_time?.slice(0, 5) ?? null, priority: task.priority, recurrence: task.recurrence })),
     };
   },
-  /** Ids of members with an appointment or calendar event within an hour of the task's due time. No AI call is made. */
+  /** Ids of members with a calendar event within an hour of the task's due time. No AI call is made. */
   busyMembersForTask: async (taskId: string): Promise<string[]> =>
     (await api<{ busy_member_ids: string[] }>(`/families/me/tasks/${taskId}/availability?timezone=${encodeURIComponent(localTimeZone())}`)).busy_member_ids,
   /** Asks the language model who should take the task. Rejects when AI is not set up or the call fails. */
@@ -204,15 +203,26 @@ export const careApi = {
     (await api<ApiKnowledgeSearchResult[]>(`/families/me/knowledge/search?limit=5&query=${encodeURIComponent(query)}`))
       .map((result) => ({ id: result.id, documentId: result.document_id, title: result.title, content: result.content })),
 
-  listAppointments: () => api<ApiAppointment[]>("/families/me/appointments"),
-  createAppointment: (appointment: NewAppointment) => api<ApiAppointment>("/families/me/appointments", {
-    method: "POST",
-    body: { title: appointment.title, place: appointment.place || null, starts_at: appointment.startsAt, attendee_id: appointment.attendeeId },
-  }),
-  deleteAppointment: (appointmentId: string) => api(`/families/me/appointments/${appointmentId}`, { method: "DELETE" }),
+  getSchedule: async (start: string, days: number): Promise<FamilySchedule> => {
+    type ApiItem = { kind: "busy" | "task"; start: string; end: string | null; all_day: boolean; title: string | null; id: string | null };
+    const schedule = await api<{ start: string; days: number; members: { member_id: string; linked_calendar: boolean; calendar_ok: boolean; items: ApiItem[] }[] }>(
+      `/families/me/schedule?start=${start}&days=${days}&timezone=${encodeURIComponent(localTimeZone())}`,
+    );
+    return {
+      start: schedule.start,
+      days: schedule.days,
+      members: schedule.members.map((member) => ({
+        memberId: member.member_id,
+        linkedCalendar: member.linked_calendar,
+        calendarOk: member.calendar_ok,
+        items: member.items.map((item) => ({ kind: item.kind, start: item.start, end: item.end, allDay: item.all_day, title: item.title, id: item.id })),
+      })),
+    };
+  },
 };
 
-const tones: FamilyMember["tone"][] = ["sage", "coral", "gold"];
+// Neighbouring members get colours that are easy to tell apart.
+const tones: FamilyMember["tone"][] = ["sage", "coral", "gold", "sky", "violet", "teal", "rose", "indigo"];
 
 function initialsFor(name: string) {
   const parts = name.trim().split(/\s+/);
@@ -248,6 +258,7 @@ function toActivity(activity: ApiActivity): TaskActivity {
     actor: activity.actor_name,
     detail: activity.detail,
     time: formatTimestamp(activity.created_at),
+    at: activity.created_at,
   };
 }
 
@@ -268,32 +279,11 @@ export function toTask(task: ApiTask, membersById: ReadonlyMap<string, FamilyMem
     assigneeId: task.assignee_id,
     owner: assignee?.firstName ?? "Unassigned",
     initials: assignee?.initials.slice(0, 1) ?? "?",
-    category: task.category,
     complete,
     attention: complete ? undefined : task.assignee_id === null ? "Unassigned" : overdue ? "Overdue" : undefined,
-    recipient: task.recipient,
     priority: task.priority === "Urgent" ? "High" : task.priority,
     status: task.status,
     activity: task.activity.map(toActivity),
-  };
-}
-
-export function toAppointment(
-  appointment: ApiAppointment,
-  membersById: ReadonlyMap<string, FamilyMember>,
-  taskTitlesById: ReadonlyMap<string, string>,
-): CareAppointment {
-  const startsAt = new Date(appointment.starts_at);
-  return {
-    id: appointment.id,
-    title: appointment.title,
-    place: appointment.place ?? undefined,
-    startsAt: appointment.starts_at,
-    date: formatDay(startsAt),
-    time: formatClock(startsAt),
-    attendeeId: appointment.attendee_id,
-    person: appointment.attendee_id ? membersById.get(appointment.attendee_id)?.firstName : undefined,
-    relatedTask: appointment.related_task_id ? taskTitlesById.get(appointment.related_task_id) : undefined,
   };
 }
 

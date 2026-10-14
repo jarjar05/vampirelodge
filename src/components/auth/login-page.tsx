@@ -1,5 +1,5 @@
 import { useRef, useState, type FormEvent, type InputHTMLAttributes } from "react";
-import { HeartPulse, LockKeyhole, Mail, UserRound, type LucideIcon } from "lucide-react";
+import { HeartPulse, KeyRound, LockKeyhole, Mail, UserRound, type LucideIcon } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { api, ApiError } from "@/api/client";
 import { PhoneInput } from "@/components/phone-input";
@@ -12,6 +12,8 @@ export interface AuthUser {
   name: string;
   avatar_url: string | null;
   created_at: string;
+  /** Overview cards to show, in order; null means the default set. */
+  overview_layout?: string[] | null;
 }
 
 interface LoginPageProps {
@@ -43,7 +45,10 @@ function FloatingField({ id, label, icon: Icon, ...input }: { id: string; label:
 }
 
 export function LoginPage({ familyName, onAuthenticated }: LoginPageProps) {
-  const [mode, setMode] = useState<"sign-in" | "create">("sign-in");
+  // "forgot" asks for the email to send a code to; "reset" takes the code and a new password.
+  const [mode, setMode] = useState<"sign-in" | "create" | "forgot" | "reset">("sign-in");
+  const [resetCode, setResetCode] = useState("");
+  const [notice, setNotice] = useState("");
   const [name, setName] = useState("");
   const [signInWith, setSignInWith] = useState<"email" | "phone">("email");
   const [email, setEmail] = useState("");
@@ -58,24 +63,43 @@ export function LoginPage({ familyName, onAuthenticated }: LoginPageProps) {
   const navigate = useNavigate();
 
   const isCreating = mode === "create";
+  const isRecovering = mode === "forgot" || mode === "reset";
+  // Both creating an account and resetting a password ask for a new password, typed twice.
+  const setsNewPassword = isCreating || mode === "reset";
 
-  const switchMode = () => {
-    setMode(isCreating ? "sign-in" : "create");
+  const goTo = (next: typeof mode, message = "") => {
+    setMode(next);
     setErrorMessage("");
+    setNotice(message);
     setPassword("");
     setPasswordConfirmation("");
+    setResetCode("");
   };
+  const switchMode = () => goTo(mode === "sign-in" ? "create" : "sign-in");
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setErrorMessage("");
-    if (isCreating && password !== passwordConfirmation) {
+    if (setsNewPassword && password !== passwordConfirmation) {
       setErrorMessage("Passwords do not match.");
       return;
     }
     setSubmitState("loading");
 
     try {
+      if (mode === "forgot") {
+        await api("/auth/forgot-password", { method: "POST", body: { email } });
+        setSubmitState("idle");
+        // The server answers the same way whether or not the account exists, so this cannot promise a code was sent.
+        goTo("reset", "If that account has Telegram linked, a 6-digit code has been sent there.");
+        return;
+      }
+      if (mode === "reset") {
+        await api("/auth/reset-password", { method: "POST", body: { email, code: resetCode, new_password: password } });
+        setSubmitState("idle");
+        goTo("sign-in", "Password changed. Sign in with your new password.");
+        return;
+      }
       const user = isCreating
         ? await api<AuthUser>("/auth/register", { method: "POST", body: { name, email, phone: phone.trim() || null, password } })
         : await api<AuthUser>("/auth/login", { method: "POST", body: signInWith === "email" ? { email, password } : { phone, password } });
@@ -101,7 +125,7 @@ export function LoginPage({ familyName, onAuthenticated }: LoginPageProps) {
         void card.offsetWidth;
         card.classList.add("shake");
       }
-      if (!isCreating && error instanceof ApiError && error.status === 401) {
+      if (mode === "sign-in" && error instanceof ApiError && error.status === 401) {
         setErrorMessage(`${signInWith === "email" ? "Email" : "Phone number"} or password is incorrect.`);
       } else {
         setErrorMessage(error instanceof Error ? error.message : "Unable to sign in. Please try again.");
@@ -120,8 +144,8 @@ export function LoginPage({ familyName, onAuthenticated }: LoginPageProps) {
             <HeartPulse size={24} aria-hidden="true" />
           </span>
           <p className="enter-rise mt-4 text-sm font-semibold text-primary" style={{ "--i": 1 } as React.CSSProperties}>{familyName}</p>
-          <h1 className="enter-rise mt-1 font-display text-3xl font-semibold" style={{ "--i": 2 } as React.CSSProperties}>{isCreating ? "Create your account" : "Welcome back"}</h1>
-          <p className="enter-rise mt-2 text-sm text-muted-foreground" style={{ "--i": 3 } as React.CSSProperties}>{isCreating ? "Then set up a family space or join one with an invite code." : "Sign in to coordinate your family’s care."}</p>
+          <h1 className="enter-rise mt-1 font-display text-3xl font-semibold" style={{ "--i": 2 } as React.CSSProperties}>{isCreating ? "Create your account" : isRecovering ? "Reset your password" : "Welcome back"}</h1>
+          <p className="enter-rise mt-2 text-sm text-muted-foreground" style={{ "--i": 3 } as React.CSSProperties}>{isCreating ? "Then set up a family space or join one with an invite code." : isRecovering ? "A code is sent to your linked Telegram." : "Sign in to coordinate your family’s care."}</p>
         </div>
 
         <div className="enter-card">
@@ -129,16 +153,22 @@ export function LoginPage({ familyName, onAuthenticated }: LoginPageProps) {
         <Card className="is-visible bg-white/90 shadow-md backdrop-blur-xl">
           <CardHeader>
             <div>
-              <h2 className="font-display text-xl font-semibold">{isCreating ? "Create an account" : "Sign in"}</h2>
-              <p className="mt-1 text-sm text-muted-foreground">{isCreating ? `Choose a password with at least ${minPasswordLength} characters.` : "Use your email or phone number and your password."}</p>
+              <h2 className="font-display text-xl font-semibold">{isCreating ? "Create an account" : mode === "forgot" ? "Forgot password" : mode === "reset" ? "Enter your code" : "Sign in"}</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {isCreating ? `Choose a password with at least ${minPasswordLength} characters.`
+                  : mode === "forgot" ? "Enter the email you sign in with."
+                    : mode === "reset" ? `Then choose a new password with at least ${minPasswordLength} characters.`
+                      : "Use your email or phone number and your password."}
+              </p>
             </div>
           </CardHeader>
           <CardContent className="pt-5">
             <form onSubmit={handleSubmit} className="space-y-4">
+              {notice && <p role="status" className="rounded-lg bg-primary/10 px-3 py-2 text-sm text-primary">{notice}</p>}
               {isCreating && (
                 <FloatingField id="login-name" label="Full name" icon={UserRound} name="name" type="text" autoComplete="name" required autoFocus maxLength={150} value={name} onChange={(event) => setName(event.target.value)} />
               )}
-              {!isCreating && (
+              {mode === "sign-in" && (
                 <div role="radiogroup" aria-label="Sign in with" className="grid grid-cols-2 gap-1 rounded-xl border border-border bg-muted/60 p-1">
                   {(["email", "phone"] as const).map((option) => (
                     <button
@@ -154,10 +184,10 @@ export function LoginPage({ familyName, onAuthenticated }: LoginPageProps) {
                   ))}
                 </div>
               )}
-              {(isCreating || signInWith === "email") && (
-                <FloatingField id="login-email" label="Email address" icon={Mail} name="email" type="email" autoComplete="username" required autoFocus={!isCreating} value={email} onChange={(event) => setEmail(event.target.value)} />
+              {(isCreating || isRecovering || signInWith === "email") && (
+                <FloatingField id="login-email" label="Email address" icon={Mail} name="email" type="email" autoComplete="username" required autoFocus={mode === "sign-in" || mode === "forgot"} value={email} onChange={(event) => setEmail(event.target.value)} />
               )}
-              {(isCreating || signInWith === "phone") && (
+              {(isCreating || (mode === "sign-in" && signInWith === "phone")) && (
                 <label className="block text-sm font-medium" htmlFor="login-phone">Phone number {isCreating && <span className="font-normal text-muted-foreground">(optional)</span>}
                   <span className="mt-1.5 block">
                     <PhoneInput
@@ -174,20 +204,30 @@ export function LoginPage({ familyName, onAuthenticated }: LoginPageProps) {
                   {isCreating && <span className="mt-1.5 block text-xs font-normal text-muted-foreground">Add one to sign in with your phone as well.</span>}
                 </label>
               )}
-              <FloatingField id="login-password" label="Password" icon={LockKeyhole} name="password" type="password" autoComplete={isCreating ? "new-password" : "current-password"} required minLength={isCreating ? minPasswordLength : undefined} value={password} onChange={(event) => setPassword(event.target.value)} />
-              {isCreating && (
-                <FloatingField id="login-password-confirmation" label="Confirm password" icon={LockKeyhole} name="password-confirmation" type="password" autoComplete="new-password" required value={passwordConfirmation} onChange={(event) => setPasswordConfirmation(event.target.value)} />
+              {mode === "reset" && (
+                <FloatingField id="login-reset-code" label="6-digit code" icon={KeyRound} name="code" type="text" inputMode="numeric" autoComplete="one-time-code" required autoFocus maxLength={12} value={resetCode} onChange={(event) => setResetCode(event.target.value)} />
+              )}
+              {mode !== "forgot" && (
+                <FloatingField id="login-password" label={mode === "reset" ? "New password" : "Password"} icon={LockKeyhole} name="password" type="password" autoComplete={setsNewPassword ? "new-password" : "current-password"} required minLength={setsNewPassword ? minPasswordLength : undefined} value={password} onChange={(event) => setPassword(event.target.value)} />
+              )}
+              {setsNewPassword && (
+                <FloatingField id="login-password-confirmation" label={mode === "reset" ? "Confirm new password" : "Confirm password"} icon={LockKeyhole} name="password-confirmation" type="password" autoComplete="new-password" required value={passwordConfirmation} onChange={(event) => setPasswordConfirmation(event.target.value)} />
+              )}
+              {mode === "sign-in" && (
+                <p className="text-right text-sm">
+                  <button type="button" onClick={() => goTo("forgot")} className="link-underline font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Forgot password?</button>
+                </p>
               )}
               {errorMessage && <p role="alert" className="rounded-lg bg-alert/10 px-3 py-2 text-sm text-alert">{errorMessage}</p>}
               {/* The button shrinks to a circle with a spinner while waiting, then draws a tick on success. */}
               <div className="grid justify-items-center">
                 <button type="submit" className="submit-morph focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" data-state={submitState} disabled={submitState !== "idle"}>
-                  <span className="submit-text">{isCreating ? "Create account" : "Sign in"}</span>
+                  <span className="submit-text">{isCreating ? "Create account" : mode === "forgot" ? "Send code" : mode === "reset" ? "Change password" : "Sign in"}</span>
                   <span className="submit-spinner" aria-hidden="true" />
                   <span className="submit-tick" aria-hidden="true">
                     <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
                   </span>
-                  <span className="sr-only" role="status">{submitState === "loading" ? (isCreating ? "Creating account…" : "Signing in…") : submitState === "done" ? "Signed in" : ""}</span>
+                  <span className="sr-only" role="status">{submitState === "loading" ? (isCreating ? "Creating account…" : isRecovering ? "Working…" : "Signing in…") : submitState === "done" ? "Signed in" : ""}</span>
                 </button>
               </div>
             </form>
@@ -196,9 +236,9 @@ export function LoginPage({ familyName, onAuthenticated }: LoginPageProps) {
         </div>
         </div>
         <p className="enter-rise mt-5 text-center text-sm text-muted-foreground" style={{ "--i": 6 } as React.CSSProperties}>
-          {isCreating ? "Already have an account?" : "New here?"}{" "}
+          {mode === "sign-in" ? "New here?" : isRecovering ? "Remembered it?" : "Already have an account?"}{" "}
           <button type="button" onClick={switchMode} className="font-semibold text-primary link-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            {isCreating ? "Sign in" : "Create an account"}
+            {mode === "sign-in" ? "Create an account" : "Sign in"}
           </button>
         </p>
       </div>

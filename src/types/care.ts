@@ -10,6 +10,9 @@ export type Family = {
   inviteCode: string | null;
 };
 
+/** The colours a member's initials can be shown in. Each member in a family gets the next one along. */
+export type AvatarTone = "sage" | "coral" | "gold" | "sky" | "violet" | "teal" | "rose" | "indigo";
+
 export type FamilyMember = {
   id: string;
   name: string;
@@ -24,7 +27,7 @@ export type FamilyMember = {
   avatarUrl?: string;
   availability: Availability;
   availabilityNote?: string;
-  tone: "sage" | "coral" | "gold";
+  tone: AvatarTone;
 };
 
 /** "Accepted" and "Declined" are no longer recorded, but still appear in older history. */
@@ -37,6 +40,8 @@ export type TaskActivity = {
   actor: string;
   detail: string;
   time: string;
+  /** When it happened, as an ISO timestamp. */
+  at: string;
 };
 
 export type TaskRecurrence = "daily" | "weekly" | "biweekly" | "monthly";
@@ -74,26 +79,11 @@ export type CareTask = {
   /** Assignee's first name, or "Unassigned". */
   owner: string;
   initials: string;
-  category: "Appointment" | "Medication" | "Check-in";
   complete: boolean;
   attention?: "Unassigned" | "Overdue";
-  recipient: string;
   priority: "High" | "Normal" | "Low";
   status: "Open" | "Completed";
   activity: TaskActivity[];
-};
-
-export type CareAppointment = {
-  id: string;
-  title: string;
-  place?: string;
-  startsAt: string;
-  date: string;
-  time: string;
-  attendeeId: string | null;
-  /** Attendee's first name, when someone is going. */
-  person?: string;
-  relatedTask?: string;
 };
 
 export type KnowledgeDocument = {
@@ -132,6 +122,8 @@ export type TaskDraft = {
   /** Local clock time, HH:MM. */
   dueTime: string | null;
   priority: "High" | "Normal" | "Low";
+  /** Set when the document says the task repeats. */
+  recurrence: TaskRecurrence | null;
 };
 
 export type DocumentDrafts = {
@@ -154,6 +146,39 @@ export type TelegramStatus = {
   configured: boolean;
   linked: boolean;
   telegramUsername: string | null;
+};
+
+/** One entry in a member's schedule: a task due, or a busy time from a linked calendar (which never has a title). */
+export type ScheduleItem = {
+  kind: "busy" | "task";
+  start: string;
+  end: string | null;
+  allDay: boolean;
+  title: string | null;
+  id: string | null;
+};
+
+export type MemberSchedule = {
+  memberId: string;
+  linkedCalendar: boolean;
+  /** False when a linked calendar could not be read, so busy times may be missing. */
+  calendarOk: boolean;
+  items: ScheduleItem[];
+};
+
+export type FamilySchedule = {
+  /** First day shown, YYYY-MM-DD. */
+  start: string;
+  days: number;
+  members: MemberSchedule[];
+};
+
+/** A suggestion from plain rules (schedule, role, workload), with no AI call. */
+export type QuickSuggestion = {
+  memberId: string | null;
+  reason: string;
+  /** Members with something on within an hour of the task's due time. */
+  busyMemberIds: string[];
 };
 
 /** An AI summary of one person's open tasks, with a suggested order to do them in. */

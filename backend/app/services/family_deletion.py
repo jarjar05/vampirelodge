@@ -3,13 +3,13 @@
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from app.models import Appointment, Family, FamilyMembership, KnowledgeDocument, Task, TaskActivity, TelegramDraft, User
+from app.models import Family, FamilyMembership, KnowledgeDocument, Task, TaskActivity, TelegramDraft, User
 from app.seed_demo import DEMO_EMAIL_DOMAIN
 from app.services import calendar_feed, chroma_service, day_plan
 
 
 def delete_family(database: Session, family: Family) -> None:
-    """Remove the family's tasks, history, appointments, notes and memberships, then the family itself.
+    """Remove the family's tasks, history, notes and memberships, then the family itself.
 
     People's own accounts are kept: they can create or join another family. The exception is sample members
     made by the demo seeder, who cannot sign in and would otherwise be left behind with nowhere to belong.
@@ -29,7 +29,6 @@ def delete_family(database: Session, family: Family) -> None:
 
     database.execute(delete(KnowledgeDocument).where(KnowledgeDocument.family_id == family_id))
     database.execute(delete(TelegramDraft).where(TelegramDraft.family_id == family_id))
-    database.execute(delete(Appointment).where(Appointment.family_id == family_id))
     database.execute(delete(TaskActivity).where(TaskActivity.family_id == family_id))
     database.execute(delete(Task).where(Task.family_id == family_id))
     database.execute(delete(FamilyMembership).where(FamilyMembership.family_id == family_id))

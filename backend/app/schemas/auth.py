@@ -1,7 +1,8 @@
+import json
 import re
 import uuid
 from datetime import datetime
-from typing import Self
+from typing import Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -70,11 +71,25 @@ class RegisterRequest(BaseModel):
         return normalize_phone(phone) if phone and phone.strip() else None
 
 
+# The cards that can appear on the Overview. Keep in step with overviewCards in src/lib/overview-layout.ts.
+OverviewCard = Literal["summary", "plan", "schedule", "family", "activity"]
+
+
 class ProfileUpdateRequest(BaseModel):
-    """Fields left out are unchanged. Send `avatar_url: null` to remove the picture."""
+    """Fields left out are unchanged. Send `avatar_url: null` to remove the picture, and `overview_layout: null`
+    to go back to the default Overview."""
 
     name: str | None = Field(default=None, min_length=1, max_length=150)
     avatar_url: str | None = Field(default=None, max_length=MAX_AVATAR_URL_LENGTH)
+    # The cards to show, in order. An empty list is allowed: an Overview with only the greeting.
+    overview_layout: list[OverviewCard] | None = Field(default=None, max_length=12)
+
+    @field_validator("overview_layout")
+    @classmethod
+    def no_repeats(cls, layout: list[str] | None) -> list[str] | None:
+        if layout is not None and len(set(layout)) != len(layout):
+            raise ValueError("Each card can appear once")
+        return layout
 
     @field_validator("name")
     @classmethod
@@ -112,6 +127,20 @@ class PasswordChangeRequest(BaseModel):
     new_password: str = Field(min_length=MIN_PASSWORD_LENGTH, max_length=1024)
 
 
+class ForgotPasswordRequest(BaseModel):
+    email: str = Field(max_length=320)
+
+    _email = field_validator("email")(normalize_email)
+
+
+class ResetPasswordRequest(BaseModel):
+    email: str = Field(max_length=320)
+    code: str = Field(min_length=1, max_length=12)
+    new_password: str = Field(min_length=MIN_PASSWORD_LENGTH, max_length=1024)
+
+    _email = field_validator("email")(normalize_email)
+
+
 class AuthUserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -121,3 +150,16 @@ class AuthUserResponse(BaseModel):
     name: str
     avatar_url: str | None
     created_at: datetime
+    # None means the person has not customised their Overview.
+    overview_layout: list[str] | None = None
+
+    @field_validator("overview_layout", mode="before")
+    @classmethod
+    def read_layout(cls, value: object) -> list[str] | None:
+        if isinstance(value, str):
+            try:
+                parsed = json.loads(value)
+            except ValueError:
+                return None
+            return [item for item in parsed if isinstance(item, str)] if isinstance(parsed, list) else None
+        return value  # type: ignore[return-value]

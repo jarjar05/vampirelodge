@@ -16,3 +16,6 @@ backend/data/
 
 # macOS
 .DS_Store
+# Browser test output
+/test-results/
+/playwright-report/

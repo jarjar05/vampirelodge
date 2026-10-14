@@ -6,12 +6,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.init_db import initialize_database
-from app.routes.appointments import router as appointments_router
 from app.routes.auth import router as auth_router
 from app.routes.calendar import router as calendar_router
 from app.routes.families import router as families_router
 from app.routes.health import router as health_router
 from app.routes.knowledge import router as knowledge_router
+from app.routes.schedule import router as schedule_router
 from app.routes.tasks import router as tasks_router
 from app.routes.telegram import router as telegram_router
 from app.services import telegram_runner
@@ -44,6 +44,6 @@ app.include_router(auth_router)
 app.include_router(families_router)
 app.include_router(knowledge_router)
 app.include_router(tasks_router)
-app.include_router(appointments_router)
 app.include_router(calendar_router)
 app.include_router(telegram_router)
+app.include_router(schedule_router)

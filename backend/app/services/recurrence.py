@@ -63,9 +63,7 @@ def _schedule_next(database: Session, latest: Task, now: datetime) -> Task | Non
         # Later than both the last one and now, so a long gap does not produce a pile of missed occurrences.
         due_at=next_due(anchor, max(latest.due_at, now), latest.recurrence),
         assignee_id=latest.assignee_id,
-        category=latest.category,
         priority=latest.priority,
-        recipient=latest.recipient,
         created_by_id=latest.created_by_id,
         recurrence=latest.recurrence,
         series_id=latest.series_id,
@@ -94,6 +92,18 @@ def catch_up(database: Session, family_id: uuid.UUID, now: datetime | None = Non
         if current is None or (task.due_at and current.due_at and task.due_at > current.due_at):
             latest_by_series[task.series_id] = task
     return any([_schedule_next(database, latest, now) is not None for latest in latest_by_series.values()])
+
+
+def set_recurrence(database: Session, task: Task, recurrence: str | None) -> None:
+    """Start, change or stop a task repeating. A task already in a series changes the whole series. Does not commit."""
+    if recurrence is None:
+        stop_series(database, task)
+    elif task.series_id is None:
+        task.recurrence = recurrence
+        task.series_id = task.id
+    else:
+        for occurrence in database.scalars(select(Task).where(Task.series_id == task.series_id)).all():
+            occurrence.recurrence = recurrence
 
 
 def stop_series(database: Session, task: Task) -> None:

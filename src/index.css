@@ -143,7 +143,7 @@ a:active {
     border-radius 0.4s var(--ease-out),
     background-color 0.3s;
 }
-.row-lift:hover {
+.row-lift:hover:not(.just-completed):not(.task-leaving) {
   z-index: 1;
   transform: translateY(-2px);
   border-radius: 0.875rem;
@@ -170,33 +170,13 @@ a:active {
 
 /* In the components layer, so a Tailwind utility on the same element still wins. */
 @layer components {
-  /* Outlined buttons fill with the brand colour from the left. */
-  .btn-wipe {
-    position: relative;
-    isolation: isolate;
-    overflow: hidden;
-  }
-  .btn-wipe::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    z-index: -1;
-    background: hsl(var(--primary));
-    transform: scaleX(0);
-    transform-origin: 0 50%;
-    transition: transform 0.45s var(--ease-out);
-  }
-  .btn-wipe:not(:disabled):hover::before {
-    transform: scaleX(1);
-  }
-
   /* A clickable card rises with a soft shadow. */
 
   /* The lifted row's background sits in this layer so a row that already has a tint, such as an at-risk task, keeps it. */
   .row-lift {
     position: relative;
   }
-  .row-lift:hover {
+  .row-lift:hover:not(.just-completed):not(.task-leaving) {
     background-color: hsl(var(--card));
   }
 
@@ -307,14 +287,10 @@ a:active {
    near the top of this file would otherwise override anything inside one. */
 .card-lift { transition: translate 0.4s var(--ease-out), box-shadow 0.4s var(--ease-out), border-color 0.4s; }
 .task-check { transition: background-color 0.25s, border-color 0.25s, scale 0.35s var(--ease-spring); }
-.task-title { transition: background-size 0.4s var(--ease-out), color 0.4s; }
+.task-title { transition: background-size 0.3s var(--ease-out), color 0.3s; }
 .submit-morph { transition: width 0.5s var(--ease-out), border-radius 0.5s var(--ease-out), box-shadow 0.3s, translate 0.3s var(--ease-out), scale 0.2s var(--ease-out); }
 
 /* Hover, focus and done states that change a colour a Tailwind class also sets. Outside the layer so they win. */
-.btn-wipe:not(:disabled):hover {
-  border-color: hsl(var(--primary));
-  color: hsl(var(--primary-foreground));
-}
 .card-lift:hover {
   translate: 0 -5px;
   border-color: hsl(var(--primary) / 0.35);
@@ -336,6 +312,52 @@ a:active {
   color: hsl(var(--muted-foreground));
 }
 
+/* Completing a task: a ring and a burst of dots spread from the tick, and the row glows green for a moment.
+   The "just-completed" class is on the row for about a second after the task is ticked off. */
+.just-completed {
+  animation: row-done 0.48s var(--ease-out);
+}
+/* Then the row slides out to the right, picking up speed as it goes, and the list closes up behind it.
+   The gap starts closing just as the row goes out of view: any earlier and the shrinking row is seen being clipped. */
+.task-leaving {
+  overflow: hidden;
+  pointer-events: none;
+  will-change: transform, opacity;
+  animation:
+    row-slide 0.42s cubic-bezier(0.5, 0, 0.9, 0.5) forwards,
+    row-collapse 0.26s var(--ease-out) 0.4s forwards;
+}
+/* A row that is celebrating or leaving ignores the hover lift (see .row-lift:hover), which would fight with its animation. */
+.just-completed .task-check {
+  animation: check-pop 0.38s var(--ease-spring);
+}
+.task-burst {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  pointer-events: none;
+}
+.task-burst::before,
+.task-burst::after {
+  content: "";
+  position: absolute;
+  border-radius: 9999px;
+}
+/* The ring. */
+.task-burst::before {
+  inset: 0;
+  border: 2px solid hsl(var(--primary));
+  animation: burst-ring 0.45s var(--ease-out) both;
+}
+/* Eight dots, drawn as shadows of one tiny dot at the centre, flying outwards. */
+.task-burst::after {
+  left: calc(50% - 2px);
+  top: calc(50% - 2px);
+  width: 4px;
+  height: 4px;
+  animation: burst-dots 0.5s var(--ease-out) both;
+}
+
 /* Profile picture buttons: the picture swells slightly and gains a soft ring on hover and while its menu is open. */
 .avatar-button { border-radius: 9999px; transition: scale 0.35s var(--ease-spring), box-shadow 0.3s var(--ease-out); }
 .avatar-button:hover,
@@ -353,6 +375,33 @@ a:active {
 .profile-chip .profile-chip-cog { opacity: 0; translate: -4px 0; transition: opacity 0.3s, translate 0.3s var(--ease-out), rotate 0.6s var(--ease-out); }
 .profile-chip:hover .profile-chip-cog,
 .profile-chip:focus-visible .profile-chip-cog { opacity: 1; translate: none; rotate: 60deg; }
+
+/* Bottom menu on small screens: the icon rises on hover, dips when pressed, and a bar glides to the current page. */
+.bottom-nav-item .bottom-nav-icon {
+  transition: translate 0.3s var(--ease-spring), background-color 0.25s, scale 0.15s var(--ease-out);
+}
+.bottom-nav-item:hover .bottom-nav-icon {
+  translate: 0 -2px;
+  background-color: hsl(var(--primary) / 0.08);
+}
+.bottom-nav-item:active .bottom-nav-icon {
+  scale: 0.86;
+}
+.bottom-nav-item[aria-current="page"] .bottom-nav-icon {
+  background-color: hsl(var(--primary) / 0.12);
+}
+.bottom-nav-bar {
+  transition: translate 0.45s var(--ease-out);
+}
+
+/* Task categories: the highlight slides between tabs, and the new list slides in from that side. */
+.tab-thumb {
+  transition: translate 0.4s var(--ease-out), width 0.4s var(--ease-out);
+}
+.tab-enter-right { animation: tab-in-right 0.35s var(--ease-out) both; }
+.tab-enter-left { animation: tab-in-left 0.35s var(--ease-out) both; }
+@keyframes tab-in-right { from { opacity: 0; translate: 32px 0; } }
+@keyframes tab-in-left { from { opacity: 0; translate: -32px 0; } }
 
 /* Dropdown menus open from their top-right corner. */
 .menu-pop {
@@ -408,6 +457,44 @@ a:active {
 @keyframes blob-in { from { opacity: 0; } }
 @keyframes drift-a { to { transform: translate(-60px, 50px) scale(1.12); } }
 @keyframes drift-b { to { transform: translate(70px, -40px) scale(1.08); } }
+@keyframes row-done {
+  0% { background-color: hsl(var(--primary) / 0); }
+  25% { background-color: hsl(var(--primary) / 0.16); }
+  100% { background-color: hsl(var(--primary) / 0); }
+}
+@keyframes row-slide {
+  0% { transform: translateX(0); opacity: 1; }
+  70% { opacity: 1; }
+  100% { transform: translateX(105%); opacity: 0; }
+}
+/* Shrinks from the row's measured height (set by the row itself), so the gap closes at an even pace. */
+@keyframes row-collapse {
+  from { height: var(--row-height); }
+  to { height: 0; padding-top: 0; padding-bottom: 0; border-top-width: 0; border-bottom-width: 0; margin-top: 0; margin-bottom: 0; min-height: 0; }
+}
+@keyframes check-pop {
+  0% { scale: 0.7; }
+  60% { scale: 1.3; }
+  100% { scale: 1.12; }
+}
+@keyframes burst-ring {
+  from { scale: 1; opacity: 0.9; }
+  to { scale: 2.6; opacity: 0; }
+}
+@keyframes burst-dots {
+  from {
+    opacity: 1;
+    box-shadow:
+      0 0 hsl(var(--primary)), 0 0 hsl(var(--secondary-foreground)), 0 0 hsl(var(--accent-foreground)), 0 0 hsl(var(--primary)),
+      0 0 hsl(var(--secondary-foreground)), 0 0 hsl(var(--accent-foreground)), 0 0 hsl(var(--primary)), 0 0 hsl(var(--secondary-foreground));
+  }
+  to {
+    opacity: 0;
+    box-shadow:
+      0 -22px hsl(var(--primary)), 16px -16px hsl(var(--secondary-foreground)), 22px 0 hsl(var(--accent-foreground)), 16px 16px hsl(var(--primary)),
+      0 22px hsl(var(--secondary-foreground)), -16px 16px hsl(var(--accent-foreground)), -22px 0 hsl(var(--primary)), -16px -16px hsl(var(--secondary-foreground));
+  }
+}
 @keyframes rise { from { opacity: 0; translate: 0 14px; } }
 @keyframes pop-in { from { opacity: 0; scale: 0.94; translate: 0 -6px; } }
 @keyframes card-in { from { opacity: 0; translate: 0 24px; scale: 0.97; filter: blur(6px); } }

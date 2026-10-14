@@ -1,6 +1,6 @@
 import type { CareTask, FamilyMember } from "@/types/care";
 
-export type TaskRiskTag = "Overdue" | "Unassigned" | "Due soon" | "Unavailable";
+export type TaskRiskTag = "Overdue" | "Unassigned" | "Due soon" | "Unavailable" | "Clash";
 
 export type TaskRiskReason = {
   tag: TaskRiskTag;
@@ -19,6 +19,8 @@ export type TaskRiskEngine = (
   tasks: readonly CareTask[],
   members: readonly FamilyMember[],
   now: Date,
+  /** Tasks whose assignee has a calendar event when the task is due. */
+  conflictTaskIds?: ReadonlySet<string>,
 ) => TaskRiskAssessment;
 
 export const taskRiskTagStyles: Record<TaskRiskTag, string> = {
@@ -26,6 +28,7 @@ export const taskRiskTagStyles: Record<TaskRiskTag, string> = {
   Unassigned: "border-warning/40 bg-warning/20 text-warning-foreground",
   "Due soon": "border-accent bg-accent/50 text-accent-foreground",
   Unavailable: "border-primary/25 bg-primary/10 text-primary",
+  Clash: "border-alert/30 bg-alert/10 text-alert",
 };
 
 export function mockTaskRiskAssessment(
@@ -33,6 +36,7 @@ export function mockTaskRiskAssessment(
   tasks: readonly CareTask[],
   members: readonly FamilyMember[],
   now: Date,
+  conflictTaskIds: ReadonlySet<string> = new Set(),
 ): TaskRiskAssessment {
   if (task.complete) return { reasons: [], riskTags: [] };
 
@@ -47,6 +51,7 @@ export function mockTaskRiskAssessment(
   if (isUnassigned && remainingMs !== undefined && remainingMs >= 0 && remainingMs <= 3 * 60 * 60_000) {
     reasons.push({ tag: "Due soon", label: "Due within 3 hours with no one assigned" });
   }
+  if (assignedMember && conflictTaskIds.has(task.id)) reasons.push({ tag: "Clash", label: `${assignedMember.firstName} is busy at that time` });
   if (assignedMember?.availability === "Away today") reasons.push({ tag: "Unavailable", label: `${assignedMember.firstName} is unavailable today` });
 
   if (reasons.length === 0) return { reasons, riskTags: [] };

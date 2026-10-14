@@ -7,14 +7,14 @@ def test_seed_demo_fills_and_resets_a_family(login):
     client = login("Sarah")
     with SessionLocal() as database:
         user = database.get_one(User, __import__("uuid").UUID(client.user_id))
-        assert seed(database, user).startswith("Added 3 demo members, 8 tasks")
+        assert seed(database, user).startswith("Added 3 demo members and 8 tasks")
         assert "nothing added" in seed(database, user)
 
     tasks = client.get("/api/families/me/tasks").json()
     assert len(tasks) == 8
     assert sum(task["assignee_id"] == client.user_id for task in tasks) == 4
     assert len(client.get("/api/families/me/members").json()) == 4
-    assert len(client.get("/api/families/me/appointments").json()) == 2
+    assert client.get("/api/families/me/appointments").status_code == 404
 
     with SessionLocal() as database:
         user = database.get_one(User, __import__("uuid").UUID(client.user_id))

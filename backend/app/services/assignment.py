@@ -1,6 +1,7 @@
 """Suggest who should take a task, using the family's members, workload, calendars, and knowledge notes."""
 
 import json
+import re
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, time, timedelta, timezone, tzinfo
@@ -8,15 +9,13 @@ from datetime import datetime, time, timedelta, timezone, tzinfo
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Appointment, FamilyMembership, Task, User
+from app.models import FamilyMembership, Task, User
 from app.services import calendar_feed, knowledge, llm
 from app.services.chroma_service import ChromaServiceError
 
 MAX_KNOWLEDGE_EXCERPTS = 4
 # Someone counts as busy at the task's time when they have something on within this long before or after it.
 CLASH_MARGIN = timedelta(hours=1)
-# Appointments in the app have a start time only, so they are taken to last this long.
-APPOINTMENT_LENGTH = timedelta(hours=1)
 # For a task with no due time, or one already overdue, the calendar is checked from now for this long.
 CALENDAR_LOOKAHEAD = timedelta(hours=48)
 
@@ -25,9 +24,8 @@ A new task needs an owner. Choose the one family member who should be asked to t
 
 Weigh these, most important first:
 1. Availability. Someone marked "Away today" should only be chosen if the task is due on a later day or nobody else can do it. \
-For the day the task is due you are given each member's appointments in this app and, for members who linked their own \
-calendar, the times it shows them as busy. "busy_at_task_time" is true when one of these falls within an hour of the task's \
-due time. Never choose someone who is busy at the task's time unless every member is, and prefer \
+For the day the task is due you are given, for members who linked their own calendar, the times it shows them as busy. \
+"busy_at_task_time" is true when one of these falls within an hour of the task's due time. Never choose someone who is busy at the task's time unless every member is, and prefer \
 someone with a freer day over someone whose day is full. Only the busy times of a linked calendar are known, not what the \
 events are, so never guess at them. An all-day entry is often a reminder or a holiday and does not by itself mean the person \
 is unavailable. A member with no "calendar_busy_on_task_day" field has not linked a calendar: they are not known to be busy or free.
@@ -76,9 +74,8 @@ def _calendar_window(task: Task, now: datetime, zone: tzinfo) -> tuple[datetime,
 
 @dataclass(frozen=True)
 class _DaySchedule:
-    """What each member has on around the task: app appointments, and busy times from a linked calendar."""
+    """What each member has on around the task: busy times from a linked calendar."""
 
-    appointments: dict[uuid.UUID, list[Appointment]]
     # Only members who linked a calendar appear here; an empty list means it shows them as free.
     calendar: dict[uuid.UUID, list[calendar_feed.BusyBlock]]
     busy_at_task_time: set[uuid.UUID]
@@ -95,35 +92,20 @@ def _family_rows(database: Session, family_id: uuid.UUID) -> list[tuple[FamilyMe
 
 def _day_schedule(database: Session, task: Task, users: list[User], now: datetime, zone: tzinfo) -> _DaySchedule:
     start, end = _calendar_window(task, now, zone)
-    appointments: dict[uuid.UUID, list[Appointment]] = {}
-    for appointment in database.scalars(
-        select(Appointment)
-        .where(
-            Appointment.family_id == task.family_id,
-            Appointment.attendee_id.is_not(None),
-            Appointment.starts_at >= start - APPOINTMENT_LENGTH,
-            Appointment.starts_at < end,
-            # The appointment this task belongs to is the task itself, not a clash with it.
-            (Appointment.related_task_id.is_(None)) | (Appointment.related_task_id != task.id),
-        )
-        .order_by(Appointment.starts_at)
-    ).all():
-        appointments.setdefault(appointment.attendee_id, []).append(appointment)
     calendar = calendar_feed.busy_for_people({user.id: user.calendar_url for user in users}, start, end, zone)
 
     busy_at_task_time: set[uuid.UUID] = set()
     if task.due_at and task.due_at > now:
         clash_start, clash_end = task.due_at - CLASH_MARGIN, task.due_at + CLASH_MARGIN
         for user in users:
-            spans = [(a.starts_at, a.starts_at + APPOINTMENT_LENGTH) for a in appointments.get(user.id, [])]
-            spans += [(block.start, block.end) for block in calendar.get(user.id, []) if not block.all_day]
+            spans = [(block.start, block.end) for block in calendar.get(user.id, []) if not block.all_day]
             if any(span_start < clash_end and span_end > clash_start for span_start, span_end in spans):
                 busy_at_task_time.add(user.id)
-    return _DaySchedule(appointments=appointments, calendar=calendar, busy_at_task_time=busy_at_task_time)
+    return _DaySchedule(calendar=calendar, busy_at_task_time=busy_at_task_time)
 
 
 def members_busy_at_task_time(database: Session, task: Task, zone: tzinfo = timezone.utc) -> set[uuid.UUID]:
-    """Members with an appointment or calendar event within an hour of the task's due time. Makes no model call."""
+    """Members with a calendar event within an hour of the task's due time. Makes no model call."""
     users = [user for _membership, user in _family_rows(database, task.family_id)]
     return _day_schedule(database, task, users, datetime.now(timezone.utc), zone).busy_at_task_time
 
@@ -142,10 +124,45 @@ def suggest_without_model(database: Session, task: Task, zone: tzinfo = timezone
         open_counts[assignee_id] = open_counts.get(assignee_id, 0) + 1
     free = [row for row in rows if row[1].id not in busy]
     pool = free or rows
-    pool = [row for row in pool if row[0].availability == "Available"] or pool
+    pool = [row for row in pool if row[0].availability != "Away today"] or pool
+    # Working-age relatives first, then a helper, then elderly relatives and children.
+    best_tier = min(_role_tier(row[0]) for row in pool)
+    pool = [row for row in pool if _role_tier(row[0]) == best_tier]
     _membership, chosen = min(pool, key=lambda row: open_counts.get(row[1].id, 0))
     reason = "Free at that time, with the fewest open tasks." if free and len(free) < len(rows) else "Has the fewest open tasks."
     return AssignmentSuggestion(member_id=chosen.id, reason=reason, note_titles=[])
+
+
+_ELDERLY_ROLE = re.compile(r"grand(ma|pa|mother|father|parent)|granny|nana\b|elder")
+_CHILD_ROLE = re.compile(r"\b(child|kid|toddler|baby)\b")
+_HELPER_ROLE = re.compile(r"helper|caregiver|carer|nurse|maid|aide|nanny")
+
+
+def _role_tier(membership: FamilyMembership) -> int:
+    """0 for a working-age relative, 1 for a paid helper, 2 for an elderly relative or a child.
+
+    The same order the model is asked to follow, read here from the words in the member's role and
+    availability note, since nothing else says how old someone is.
+    """
+    role = (membership.relationship_label or "").lower()
+    note = (membership.availability_note or "").lower()
+    if _ELDERLY_ROLE.search(role) or _CHILD_ROLE.search(role) or "school" in note:
+        return 2
+    return 1 if _HELPER_ROLE.search(role) else 0
+
+
+def assignee_clashes(database: Session, family_id: uuid.UUID, zone: tzinfo = timezone.utc) -> set[uuid.UUID]:
+    """Open tasks whose assignee has a calendar event within an hour of the due time."""
+    now = datetime.now(timezone.utc)
+    users = {user.id: user for _membership, user in _family_rows(database, family_id)}
+    clashing: set[uuid.UUID] = set()
+    for task in database.scalars(
+        select(Task).where(Task.family_id == family_id, Task.status != "Completed", Task.assignee_id.is_not(None), Task.due_at > now)
+    ).all():
+        assignee = users.get(task.assignee_id)
+        if assignee and assignee.id in _day_schedule(database, task, [assignee], now, zone).busy_at_task_time:
+            clashing.add(task.id)
+    return clashing
 
 
 def _member_summaries(database: Session, family_id: uuid.UUID, task: Task, now: datetime, zone: tzinfo) -> list[dict]:
@@ -167,10 +184,6 @@ def _member_summaries(database: Session, family_id: uuid.UUID, task: Task, now: 
                 if open_task.assignee_id == user.id
             ],
             "busy_at_task_time": user.id in schedule.busy_at_task_time,
-            "appointments_on_task_day": [
-                {"title": appointment.title, "starts": _due_label(appointment.starts_at, zone)}
-                for appointment in schedule.appointments.get(user.id, [])
-            ],
             # Present only for members who linked a calendar; an empty list means it shows them as free.
             **({"calendar_busy_on_task_day": calendar_feed.describe(schedule.calendar[user.id], zone)} if user.id in schedule.calendar else {}),
         }
@@ -194,7 +207,6 @@ def build_prompt(task: Task, members: list[dict], notes: list[dict], now: dateti
         "location": task.location,
         "due": _due_label(task.due_at, zone),
         "priority": task.priority,
-        "category": task.category,
         "currently_assigned_to": str(task.assignee_id) if task.assignee_id else None,
     }
     notes_text = "\n\n".join(f"[{note['title']}]\n{note['content']}" for note in notes) or "(no family notes matched this task)"

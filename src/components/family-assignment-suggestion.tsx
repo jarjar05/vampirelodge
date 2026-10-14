@@ -85,7 +85,7 @@ export function FamilyAssignmentSuggestion({
   const [ai, setAi] = useState<AiState>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
 
-  // Who is busy when the task is due, from appointments and linked calendars. This check is free: it makes no AI call.
+  // Who is busy when the task is due, from linked calendars. This check is free: it makes no AI call.
   const [busyMemberIds, setBusyMemberIds] = useState<ReadonlySet<string>>(new Set());
   useEffect(() => {
     let isCurrent = true;

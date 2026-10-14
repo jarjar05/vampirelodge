@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import func, select
 
 from app.database import SessionLocal
-from app.models import Appointment, Family, FamilyMembership, KnowledgeDocument, Task, TaskActivity, TelegramDraft, User
+from app.models import Family, FamilyMembership, KnowledgeDocument, Task, TaskActivity, TelegramDraft, User
 from app.utils.passwords import hash_password
 
 
@@ -23,7 +23,6 @@ def test_deleting_a_family_wipes_its_data_and_keeps_peoples_accounts(family, log
     soon = (datetime.now(timezone.utc) + timedelta(days=1)).isoformat()
     task = admin.post("/api/families/me/tasks", json={"title": "Pick up medication", "assignee_id": member.user_id, "due_at": soon, "recurrence": "weekly"}).json()
     admin.post(f"/api/families/me/tasks/{task['id']}/complete")
-    admin.post("/api/families/me/appointments", json={"title": "GP review", "starts_at": soon, "attendee_id": member.user_id, "related_task_id": task["id"]})
     admin.post("/api/families/me/knowledge", json={"title": "Who does what", "category": "care_note", "content": "Ben collects medication."})
     with SessionLocal() as database:
         # A sample member, as the demo seeder makes them, and a draft the bot is holding.
@@ -50,7 +49,7 @@ def test_deleting_a_family_wipes_its_data_and_keeps_peoples_accounts(family, log
 
     assert _delete(admin, "  test family ").status_code == 204
 
-    for model in (Task, TaskActivity, Appointment, KnowledgeDocument, FamilyMembership, TelegramDraft):
+    for model in (Task, TaskActivity, KnowledgeDocument, FamilyMembership, TelegramDraft):
         assert _count(model, family_id=family_id) == 0, model.__name__
     assert _count(Family, id=family_id) == 0
     assert _count(User, email="sample.1@demo.invalid") == 0

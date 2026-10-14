@@ -17,6 +17,9 @@ from pypdf import PdfReader
 from pypdf.errors import PyPdfError
 
 from app.models.task import TASK_PRIORITIES
+
+# Kept here as plain values so this module does not depend on the recurrence service.
+RECURRENCES = ("daily", "weekly", "biweekly", "monthly")
 from app.services import llm
 
 MAX_FILE_BYTES = 5_000_000
@@ -38,6 +41,8 @@ bring, opening hours, who to contact. Leave out greetings and background.
 - due_date: the deadline, or the date of the event, as YYYY-MM-DD, or null when the document gives none. When the \
 document leaves out the year, use the next such date on or after today.
 - due_time: the time it must be done by, or the event's start time, as 24-hour HH:MM, or null when none is given.
+- recurrence: "daily", "weekly", "biweekly" or "monthly" when the document clearly says the action repeats on that \
+schedule (for example "every Monday" is weekly, with due_date the first such day); otherwise null.
 - priority: "High" when the deadline is within three days of today or the document states a consequence for \
 missing it; "Low" when the action is optional; otherwise "Normal".
 
@@ -65,6 +70,8 @@ class TaskDraft:
     due_date: date | None
     due_time: time | None
     priority: str
+    # "daily", "weekly", "biweekly" or "monthly"; only ever set together with a due date.
+    recurrence: str | None = None
 
 
 @dataclass(frozen=True)
@@ -188,8 +195,9 @@ SCHEMA = {
                     "due_date": _NULLABLE_STRING,
                     "due_time": _NULLABLE_STRING,
                     "priority": {"type": "string", "enum": list(TASK_PRIORITIES)},
+                    "recurrence": {"type": ["string", "null"], "enum": [*RECURRENCES, None]},
                 },
-                "required": ["title", "details", "location", "due_date", "due_time", "priority"],
+                "required": ["title", "details", "location", "due_date", "due_time", "priority", "recurrence"],
                 "additionalProperties": False,
             },
         },
@@ -222,11 +230,13 @@ def draft_tasks(text: str, images: list[tuple[str, bytes]], now: datetime, zone:
         details = raw.get("details")
         location = raw.get("location")
         priority = raw.get("priority")
+        due_date = _parse_date(raw.get("due_date"))
         drafts.append(TaskDraft(
+            recurrence=raw.get("recurrence") if raw.get("recurrence") in RECURRENCES and due_date else None,
             title=raw["title"].strip()[:100],
             detail=details.strip()[:500] if isinstance(details, str) else "",
             location=(location.strip()[:120] or None) if isinstance(location, str) else None,
-            due_date=_parse_date(raw.get("due_date")),
+            due_date=due_date,
             due_time=_parse_time(raw.get("due_time")),
             priority=priority if priority in TASK_PRIORITIES else "Normal",
         ))

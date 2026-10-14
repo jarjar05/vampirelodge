@@ -103,9 +103,41 @@ def _draft_summary(draft: TelegramDraft) -> str:
         lines.append(f"Where: {draft.location}")
     if draft.detail:
         lines.append(draft.detail)
+    if draft.recurrence and draft.due_date:
+        lines.append(f"Repeats {recurrence.LABELS[draft.recurrence]}")
     if draft.priority != "Normal":
         lines.append(f"Priority: {draft.priority}")
     return "\n".join(lines)
+
+
+# ── Telling someone about their task ───────────────────────────────────────────
+
+def _notify(user: User | None, lines: list[str], task: Task) -> None:
+    """Send a note about a task to its assignee, if they can be reached. Never raises: a notice is a courtesy."""
+    if user is None or user.telegram_id is None or not telegram_api.is_configured():
+        return
+    lines.append(f"Due: {_when(task.due_at, user)}")
+    if task.location:
+        lines.append(f"Where: {task.location}")
+    buttons = [("✅ Done", f"t:done:{task.id.hex}")] if task.status != "Completed" else None
+    try:
+        telegram_api.send_message(user.telegram_id, "\n".join(lines), buttons=buttons)
+    except TelegramError:
+        pass
+
+
+def notify_assigned(database: Session, task: Task, actor: User) -> None:
+    """Tell the assignee they have a new task, unless they gave it to themselves."""
+    if task.assignee_id is None or task.assignee_id == actor.id:
+        return
+    _notify(database.get(User, task.assignee_id), [f"📌 {actor.name.split()[0]} gave you a task: {task.title}"], task)
+
+
+def notify_updated(database: Session, task: Task, actor: User, what_changed: str) -> None:
+    """Tell the assignee their task was changed by someone else."""
+    if task.assignee_id is None or task.assignee_id == actor.id:
+        return
+    _notify(database.get(User, task.assignee_id), [f"✏️ {actor.name.split()[0]} changed the {what_changed} of: {task.title}"], task)
 
 
 # ── Overdue reminders ──────────────────────────────────────────────────────────
@@ -168,7 +200,7 @@ def _draft_from_message(database: Session, user: User, chat_id: int, reply_to: i
     for found in drafts.tasks[:MAX_DRAFTS_PER_MESSAGE]:
         draft = TelegramDraft(
             user_id=user.id, family_id=family_id, title=found.title, detail=found.detail, location=found.location,
-            due_date=found.due_date, due_time=found.due_time, priority=found.priority,
+            due_date=found.due_date, due_time=found.due_time, priority=found.priority, recurrence=found.recurrence,
         )
         database.add(draft)
         database.commit()
@@ -210,6 +242,11 @@ def _guided_question(draft: TelegramDraft) -> tuple[str, list[tuple[str, str]]]:
         return (
             f"What time? Pick one, or type a time such as 5:30pm.{hint}",
             [("9 AM", f"g:t09:{key}"), ("12 PM", f"g:t12:{key}"), ("6 PM", f"g:t18:{key}"), ("No time", f"g:notime:{key}")],
+        )
+    if draft.step == "repeat":
+        return (
+            f"Does it repeat?{hint}",
+            [("No", f"g:r0:{key}"), ("Daily", f"g:rd:{key}"), ("Weekly", f"g:rw:{key}"), ("2 weeks", f"g:rb:{key}"), ("Monthly", f"g:rm:{key}")],
         )
     return f"Where? Type the place.{hint}", [("No location", f"g:noloc:{key}")]
 
@@ -268,7 +305,13 @@ def _apply_guided_answer(draft: TelegramDraft, answer: str, user: User) -> str |
             if parsed_time is None:
                 return "I didn't catch that time. Try 5pm, 5:30pm or 17:30."
             draft.due_time = parsed_time
-        draft.step = "location"
+        draft.step = "repeat"
+    elif draft.step == "repeat":
+        words = answer.strip().lower()
+        choice = None if skip or words in ("never", "once", "no repeat") else _REPEAT_WORDS.get(words, "")
+        if choice == "":
+            return "Choose No, Daily, Weekly, 2 weeks or Monthly."
+        draft.recurrence, draft.step = choice, "location"
     else:
         draft.location = None if skip else (answer.strip()[:120] or None)
         draft.step = None
@@ -284,8 +327,19 @@ def _answer_guided(database: Session, user: User, draft: TelegramDraft, answer: 
     _send_guided_step(database, draft, chat_id, reply_to)
 
 
-_GUIDED_BUTTON_ANSWERS = {"today": "today", "tomorrow": "tomorrow", "nodate": "skip", "t09": "9am", "t12": "12pm", "t18": "6pm", "notime": "skip", "noloc": "skip"}
-_GUIDED_BUTTON_STEPS = {"use": "title", "today": "date", "tomorrow": "date", "nodate": "date", "t09": "time", "t12": "time", "t18": "time", "notime": "time", "noloc": "location"}
+_REPEAT_WORDS = {
+    "daily": "daily", "every day": "daily", "weekly": "weekly", "every week": "weekly",
+    "2 weeks": "biweekly", "every 2 weeks": "biweekly", "biweekly": "biweekly", "fortnightly": "biweekly",
+    "monthly": "monthly", "every month": "monthly",
+}
+_GUIDED_BUTTON_ANSWERS = {
+    "today": "today", "tomorrow": "tomorrow", "nodate": "skip", "t09": "9am", "t12": "12pm", "t18": "6pm", "notime": "skip", "noloc": "skip",
+    "r0": "never", "rd": "daily", "rw": "weekly", "rb": "biweekly", "rm": "monthly",
+}
+_GUIDED_BUTTON_STEPS = {
+    "use": "title", "today": "date", "tomorrow": "date", "nodate": "date", "t09": "time", "t12": "time", "t18": "time", "notime": "time", "noloc": "location",
+    "r0": "repeat", "rd": "repeat", "rw": "repeat", "rb": "repeat", "rm": "repeat",
+}
 
 
 def _handle_guided_button(database: Session, user: User, choice: str, draft_hex: str, callback: dict[str, Any]) -> str:
@@ -412,6 +466,8 @@ def _add_draft(database: Session, user: User, draft: TelegramDraft) -> tuple[str
     database.add(task)
     record_activity(task, user.id, "Created", "Added from a Telegram message")
     database.flush()
+    if draft.recurrence and task.due_at is not None:
+        recurrence.set_recurrence(database, task, draft.recurrence)
     draft.task_id = task.id
     database.commit()
 
@@ -472,6 +528,7 @@ def _handle_draft_button(database: Session, user: User, action: str, draft_hex: 
         task.overdue_reminded_at = None
         record_activity(task, user.id, "Assigned", f"Assigned to {member.name}")
         database.commit()
+        notify_assigned(database, task, user)
         return f"Assigned to {member.name.split()[0]}.", f"{added}\nAssigned to {member.name}.", []
     database.commit()
     return "Left unassigned.", f"{added}\nNo one is assigned yet.", []

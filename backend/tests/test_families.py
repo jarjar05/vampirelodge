@@ -49,30 +49,6 @@ def test_removing_a_member_unassigns_their_tasks(family):
     assert task["assignee_id"] == member.user_id
 
 
-def test_appointments_are_family_scoped(family, login):
-    admin, member = family
-    created = admin.post(
-        "/api/families/me/appointments",
-        json={"title": "GP review", "place": "Riverside Family Practice", "starts_at": "2030-01-02T10:30:00Z", "attendee_id": member.user_id},
-    )
-    assert created.status_code == 201, created.text
-    appointment_id = created.json()["id"]
-    assert [item["title"] for item in member.get("/api/families/me/appointments").json()] == ["GP review"]
-
-    outsider = login("Olivia")
-    outsider.post("/api/families", json={"name": "Other Family"})
-    assert outsider.get("/api/families/me/appointments").json() == []
-    assert outsider.delete(f"/api/families/me/appointments/{appointment_id}").status_code == 404
-    response = outsider.post(
-        "/api/families/me/appointments",
-        json={"title": "x", "starts_at": "2030-01-02T10:30:00Z", "attendee_id": member.user_id},
-    )
-    assert response.status_code == 422
-
-    assert member.delete(f"/api/families/me/appointments/{appointment_id}").status_code == 204
-    assert admin.get("/api/families/me/appointments").json() == []
-
-
 def test_init_db_adds_columns_missing_from_an_existing_table(tmp_path, monkeypatch):
     import app.init_db as init_db
 

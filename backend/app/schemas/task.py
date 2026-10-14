@@ -4,7 +4,6 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-TaskCategory = Literal["Appointment", "Medication", "Check-in"]
 TaskPriority = Literal["High", "Normal", "Low"]
 TaskRecurrence = Literal["daily", "weekly", "biweekly", "monthly"]
 
@@ -14,9 +13,7 @@ class TaskCreateRequest(BaseModel):
     detail: str = Field(default="", max_length=500)
     location: str | None = Field(default=None, max_length=120)
     due_at: datetime | None = None
-    category: TaskCategory = "Check-in"
     priority: TaskPriority = "Normal"
-    recipient: str = Field(default="Shared household", min_length=1, max_length=80)
     assignee_id: uuid.UUID | None = None
     # A repeating task needs a due time to count from.
     recurrence: TaskRecurrence | None = None
@@ -49,6 +46,8 @@ class TaskUpdateRequest(BaseModel):
     location: str | None = Field(default=None, max_length=120)
     due_at: datetime | None = None
     priority: TaskPriority | None = None
+    # A value starts or changes the repeat; null stops it.
+    recurrence: TaskRecurrence | None = None
 
     @field_validator("title")
     @classmethod
@@ -78,10 +77,8 @@ class TaskResponse(BaseModel):
     location: str | None
     due_at: datetime | None
     assignee_id: uuid.UUID | None
-    category: str
     priority: str
     status: str
-    recipient: str
     created_at: datetime
     completed_at: datetime | None
     recurrence: TaskRecurrence | None
@@ -114,6 +111,7 @@ class TaskDraftResponse(BaseModel):
     due_date: date | None
     due_time: time | None
     priority: TaskPriority
+    recurrence: TaskRecurrence | None = None
 
 
 class DocumentTasksResponse(BaseModel):
@@ -121,8 +119,21 @@ class DocumentTasksResponse(BaseModel):
     tasks: list[TaskDraftResponse]
 
 
+class QuickSuggestionResponse(BaseModel):
+    """A suggestion from plain rules, with no model call: who is free, their role, and their workload."""
+
+    member_id: uuid.UUID | None
+    reason: str
+    busy_member_ids: list[uuid.UUID]
+
+
+class TaskConflictsResponse(BaseModel):
+    # Open tasks whose assignee has a calendar event within an hour of the due time.
+    task_ids: list[uuid.UUID]
+
+
 class TaskAvailabilityResponse(BaseModel):
-    # Members with an appointment or a calendar event within an hour of the task's due time.
+    # Members with a calendar event within an hour of the task's due time.
     busy_member_ids: list[uuid.UUID]
 
 

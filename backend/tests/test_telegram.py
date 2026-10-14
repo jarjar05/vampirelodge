@@ -168,6 +168,8 @@ def test_overdue_reminder_goes_once_to_the_linked_assignee(family, telegram):
     done = _overdue_task(admin, member.user_id, title="Already done")
     admin.post(f"/api/families/me/tasks/{done['id']}/complete")
     admin.post("/api/families/me/tasks", json={"title": "No due date", "assignee_id": member.user_id})
+    # Ben was told about each task as it was given to him; only the reminders are counted from here.
+    telegram.messages.clear()
 
     assert _remind() == 1
     reminder = telegram.messages[0]
@@ -407,6 +409,11 @@ def test_when_the_model_is_down_the_bot_asks_for_each_detail(family, telegram, d
     _handle(_private(ALICE_TG, "half past"))
     assert telegram.messages[-1].text.startswith("I didn't catch that time.")
     _handle(_private(ALICE_TG, "5:30pm"))
+    repeat = telegram.messages[-1]
+    assert repeat.text == "Does it repeat?" and [label for label, _data in repeat.buttons] == ["No", "Daily", "Weekly", "2 weeks", "Monthly"]
+    _handle(_private(ALICE_TG, "sometimes"))
+    assert telegram.messages[-1].text.startswith("Choose No, Daily")
+    _handle(_private(ALICE_TG, "every week"))
     where = telegram.messages[-1]
     assert where.text.startswith("Where?") and where.buttons[0][0] == "No location"
     # The model was only tried once, for the first message; the answers never went to it.
@@ -414,13 +421,14 @@ def test_when_the_model_is_down_the_bot_asks_for_each_detail(family, telegram, d
 
     _handle(_private(ALICE_TG, "Guardian, Tampines Mall"))
     confirm = telegram.messages[-1]
-    assert confirm.text == "Add this task?\n\nCollect Grandma's eye drops\nWhen: Fri 14 Nov 2031, 5:30 PM\nWhere: Guardian, Tampines Mall"
+    assert confirm.text == "Add this task?\n\nCollect Grandma's eye drops\nWhen: Fri 14 Nov 2031, 5:30 PM\nWhere: Guardian, Tampines Mall\nRepeats every week"
     assert admin.get("/api/families/me/tasks").json() == []
 
     _tap(ALICE_TG, confirm, "✅ Add task")
     task = admin.get("/api/families/me/tasks").json()[0]
     assert task["title"] == "Collect Grandma's eye drops" and task["location"] == "Guardian, Tampines Mall" and task["detail"] == ""
     assert task["due_at"].startswith("2031-11-14T09:30:00")  # 5:30 PM in Singapore
+    assert task["recurrence"] == "weekly"
     # With the model down, the suggestion comes from the plain rule.
     assert "Suggested:" in telegram.edits[-1].text and "fewest open tasks" in telegram.edits[-1].text
 
@@ -452,6 +460,7 @@ def test_new_command_buttons_and_cancel(family, telegram, drafting):
     _handle(_private(ALICE_TG, "Half done"))
     _tap(ALICE_TG, telegram.messages[-1], "Tomorrow")
     _tap(ALICE_TG, telegram.messages[-1], "6 PM")
+    _tap(ALICE_TG, telegram.messages[-1], "No")
     assert telegram.messages[-1].text.startswith("Where?")
     _handle(_private(ALICE_TG, "/cancel"))
     assert telegram.messages[-1].text == "Cancelled."
@@ -515,3 +524,51 @@ def test_adding_acknowledges_the_press_before_the_slow_work(family, telegram, dr
     telegram.notices.clear()
     _handle(_press(ALICE_TG, telegram.messages[0].buttons[0][1]))
     assert telegram.notices == ["Adding…"]
+
+
+def test_the_assignee_is_told_when_given_a_task_or_when_it_changes(family, telegram):
+    admin, member = family
+    _link(member, BEN_TG)
+    _link(admin, ALICE_TG)
+    telegram.messages.clear()
+
+    task = admin.post("/api/families/me/tasks", json={"title": "Pick up medication", "location": "Oak Pharmacy", "due_at": "2031-11-14T01:00:00Z", "assignee_id": member.user_id}).json()
+    note = telegram.messages[-1]
+    assert note.chat_id == BEN_TG
+    assert note.text == "📌 Alice gave you a task: Pick up medication\nDue: Fri 14 Nov, 9:00 AM\nWhere: Oak Pharmacy"
+    assert note.buttons == [("✅ Done", f"t:done:{uuid.UUID(task['id']).hex}")]
+
+    admin.patch(f"/api/families/me/tasks/{task['id']}", json={"due_at": "2031-11-15T01:00:00Z", "location": "Guardian"})
+    assert telegram.messages[-1].text == "✏️ Alice changed the due date and location of: Pick up medication\nDue: Sat 15 Nov, 9:00 AM\nWhere: Guardian"
+
+    # Nobody is messaged about their own actions, or about nothing changing.
+    sent = len(telegram.messages)
+    member.patch(f"/api/families/me/tasks/{task['id']}", json={"priority": "High"})
+    admin.patch(f"/api/families/me/tasks/{task['id']}", json={"priority": "High"})
+    member.post("/api/families/me/tasks", json={"title": "Mine", "assignee_id": member.user_id})
+    assert len(telegram.messages) == sent
+
+    # Reassigning tells the new person, not the old one.
+    member.post(f"/api/families/me/tasks/{task['id']}/assign", json={"assignee_id": admin.user_id})
+    assert telegram.messages[-1].chat_id == ALICE_TG and telegram.messages[-1].text.startswith("📌 Ben gave you a task: Pick up medication")
+    member.post(f"/api/families/me/tasks/{task['id']}/assign", json={"assignee_id": None})
+    assert len(telegram.messages) == sent + 1
+
+    # A notice that cannot be delivered never fails the change itself.
+    telegram.fail_with = telegram_api.TelegramError("down")
+    response = admin.post("/api/families/me/tasks", json={"title": "Still saved", "assignee_id": member.user_id})
+    assert response.status_code == 201
+
+
+def test_a_repeating_task_drafted_from_a_message(family, telegram, drafting):
+    admin, _member = family
+    _link(admin, ALICE_TG)
+    telegram.messages.clear()
+    drafting.drafts = [_draft(recurrence="weekly"), _draft(title="No date", due_date=None, due_time=None, recurrence="daily")]
+    _handle(_private(ALICE_TG, "Bins go out every Friday"))
+    dated, undated = telegram.messages
+    assert "Repeats every week" in dated.text and "Repeats" not in undated.text
+    _handle(_press(ALICE_TG, dated.buttons[0][1]))
+    _handle(_press(ALICE_TG, undated.buttons[0][1]))
+    by_title = {task["title"]: task for task in admin.get("/api/families/me/tasks").json()}
+    assert by_title["Buy school uniform"]["recurrence"] == "weekly" and by_title["No date"]["recurrence"] is None

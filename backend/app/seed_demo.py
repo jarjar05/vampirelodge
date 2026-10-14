@@ -1,4 +1,4 @@
-"""Fill a family with demo members, tasks, and appointments for local testing.
+"""Fill a family with demo members and tasks for local testing.
 
     python -m app.seed_demo [--email you@example.com] [--reset]
 
@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
 from app.init_db import initialize_database
-from app.models import Appointment, Family, FamilyMembership, Task, User
+from app.models import Family, FamilyMembership, Task, User
 from app.services.tasks import record_activity
 from app.utils.passwords import hash_password
 
@@ -26,22 +26,17 @@ DEMO_MEMBERS = [
     ("Jason Rivera", "Grandson", "Available", None),
     ("Linda Chen", "Caregiver", "On duty", None),
 ]
-# (title, detail, location, days from today, hour, minute, assignee, category, priority, status)
+# (title, detail, location, days from today, hour, minute, assignee, priority, status)
 # The assignee "me" is the signed-in user the demo is created for.
 DEMO_TASKS = [
-    ("Pay medical bill", "Riverside Family Practice · invoice due today", "Riverside Family Practice", 0, 16, 0, None, "Medication", "High", "Open"),
-    ("Pick up medication", "Oak Pharmacy · blood pressure tablets", "Oak Pharmacy", 0, 17, 30, "me", "Medication", "High", "Open"),
-    ("Prepare GP appointment notes", "Bring medication list and recent blood pressure readings", None, 1, 9, 45, "me", "Appointment", "Normal", "Open"),
-    ("Bring Mum to SGH", "Leave home by 8:15 AM for the specialist appointment", "Singapore General Hospital", 4, 8, 15, "David Rivera", "Appointment", "High", "Open"),
-    ("Buy groceries", "Use Mum’s list on the kitchen counter", "Mum’s home and nearby grocery store", 0, 18, 0, "Jason Rivera", "Check-in", "Normal", "Open"),
-    ("Set out evening medication", "Prepare the labelled pill organiser for tonight", None, 0, 19, 0, "Linda Chen", "Medication", "High", "Open"),
-    ("Call clinic to confirm appointment", "Ask whether Mum should fast before the blood test", None, 3, 9, 0, "me", "Appointment", "Normal", "Open"),
-    ("Call Mum after lunch", "See how she is feeling and ask about groceries", None, -1, 13, 15, "me", "Check-in", "Low", "Completed"),
-]
-# (title, place, days from today, hour, minute, attendee, related task title)
-DEMO_APPOINTMENTS = [
-    ("GP review", "Riverside Family Practice", 1, 10, 30, "me", "Prepare GP appointment notes"),
-    ("Specialist appointment", "Singapore General Hospital", 4, 9, 0, "David Rivera", "Bring Mum to SGH"),
+    ("Pay medical bill", "Riverside Family Practice · invoice due today", "Riverside Family Practice", 0, 16, 0, None, "High", "Open"),
+    ("Pick up medication", "Oak Pharmacy · blood pressure tablets", "Oak Pharmacy", 0, 17, 30, "me", "High", "Open"),
+    ("Prepare GP appointment notes", "Bring medication list and recent blood pressure readings", None, 1, 9, 45, "me", "Normal", "Open"),
+    ("Bring Mum to SGH", "Leave home by 8:15 AM for the specialist appointment", "Singapore General Hospital", 4, 8, 15, "David Rivera", "High", "Open"),
+    ("Buy groceries", "Use Mum’s list on the kitchen counter", "Mum’s home and nearby grocery store", 0, 18, 0, "Jason Rivera", "Normal", "Open"),
+    ("Set out evening medication", "Prepare the labelled pill organiser for tonight", None, 0, 19, 0, "Linda Chen", "High", "Open"),
+    ("Call clinic to confirm appointment", "Ask whether Mum should fast before the blood test", None, 3, 9, 0, "me", "Normal", "Open"),
+    ("Call Mum after lunch", "See how she is feeling and ask about groceries", None, -1, 13, 15, "me", "Low", "Completed"),
 ]
 
 
@@ -75,7 +70,6 @@ def _ensure_family(database: Session, user: User) -> Family:
 
 
 def _reset(database: Session, family: Family) -> None:
-    database.execute(delete(Appointment).where(Appointment.family_id == family.id))
     for task in database.scalars(select(Task).where(Task.family_id == family.id)).all():
         database.delete(task)
     demo_users = database.scalars(
@@ -115,7 +109,7 @@ def seed(database: Session, user: User, reset: bool = False) -> str:
         people[name] = member
 
     tasks: dict[str, Task] = {}
-    for title, detail, location, days, hour, minute, assignee_key, category, priority, status in DEMO_TASKS:
+    for title, detail, location, days, hour, minute, assignee_key, priority, status in DEMO_TASKS:
         assignee = people[assignee_key] if assignee_key else None
         task = Task(
             family_id=family.id,
@@ -124,7 +118,6 @@ def seed(database: Session, user: User, reset: bool = False) -> str:
             location=location,
             due_at=_local_time(days, hour, minute),
             assignee_id=assignee.id if assignee else None,
-            category=category,
             priority=priority,
             status=status,
             created_by_id=user.id,
@@ -139,24 +132,15 @@ def seed(database: Session, user: User, reset: bool = False) -> str:
         tasks[title] = task
     database.flush()
 
-    for title, place, days, hour, minute, attendee_key, related_title in DEMO_APPOINTMENTS:
-        database.add(Appointment(
-            family_id=family.id,
-            title=title,
-            place=place,
-            starts_at=_local_time(days, hour, minute),
-            attendee_id=people[attendee_key].id,
-            related_task_id=tasks[related_title].id,
-        ))
 
     database.commit()
-    return f"Added {len(DEMO_MEMBERS)} demo members, {len(DEMO_TASKS)} tasks, and {len(DEMO_APPOINTMENTS)} appointments to {family.name}."
+    return f"Added {len(DEMO_MEMBERS)} demo members and {len(DEMO_TASKS)} tasks to {family.name}."
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--email", help="Account to seed for. Optional when only one account exists.")
-    parser.add_argument("--reset", action="store_true", help="Delete the family's tasks, appointments, and demo members first.")
+    parser.add_argument("--reset", action="store_true", help="Delete the family's tasks and demo members first.")
     arguments = parser.parse_args()
 
     initialize_database()

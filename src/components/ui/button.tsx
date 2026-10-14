@@ -9,8 +9,8 @@ const buttonVariants = cva(
       variant: {
         // Lifts and gains a coloured shadow on hover, then presses back down on click.
         default: "bg-primary text-primary-foreground shadow-sm shadow-primary/30 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/50 active:translate-y-0 active:shadow-sm",
-        // Fills with the brand colour from the left; see .btn-wipe in index.css.
-        outline: "btn-wipe border border-border bg-card",
+        // Lifts like the main buttons, with a soft neutral shadow and a green edge.
+        outline: "border border-border bg-card shadow-sm shadow-foreground/[0.04] hover:-translate-y-0.5 hover:border-primary/40 hover:text-primary hover:shadow-lg hover:shadow-foreground/10 active:translate-y-0 active:shadow-sm",
         ghost: "hover:bg-primary/10 hover:text-primary",
       },
       size: {

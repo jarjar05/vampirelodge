@@ -122,15 +122,15 @@ def _upload(client, data: bytes, filename="letter.txt", content_type="text/plain
 
 def test_drafts_come_back_for_review_and_nothing_is_created(family, fake_model):
     admin, _member = family
-    fake_model.answer = {"document_summary": "  A school letter about a uniform and book sale.  ", "tasks": [_draft(), _draft(title="Return the consent form", location=None, due_date=None, due_time=None, priority="High")]}
+    fake_model.answer = {"document_summary": "  A school letter about a uniform and book sale.  ", "tasks": [_draft(recurrence="weekly"), _draft(title="Return the consent form", location=None, due_date=None, due_time=None, priority="High", recurrence="monthly")]}
 
     response = _upload(admin, LETTER.encode(), timezone="Asia/Singapore")
     assert response.status_code == 200, response.text
     assert response.json() == {
         "summary": "A school letter about a uniform and book sale.",
         "tasks": [
-            {"title": "Buy school uniform and books", "detail": "PayNow or NETS only.", "location": "School Hall", "due_date": "2031-11-14", "due_time": "09:00:00", "priority": "Normal"},
-            {"title": "Return the consent form", "detail": "PayNow or NETS only.", "location": None, "due_date": None, "due_time": None, "priority": "High"},
+            {"title": "Buy school uniform and books", "detail": "PayNow or NETS only.", "location": "School Hall", "due_date": "2031-11-14", "due_time": "09:00:00", "priority": "Normal", "recurrence": "weekly"},
+            {"title": "Return the consent form", "detail": "PayNow or NETS only.", "location": None, "due_date": None, "due_time": None, "priority": "High", "recurrence": None},
         ],
     }
     assert admin.get("/api/families/me/tasks").json() == []

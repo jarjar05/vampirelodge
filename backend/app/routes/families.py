@@ -154,6 +154,15 @@ def update_family_member(
         membership.availability = changes["availability"]
     if "availability_note" in changes:
         membership.availability_note = changes["availability_note"]
+    if changes.get("role") is not None and changes["role"] != membership.role:
+        _require_admin(family_access)
+        if changes["role"] == "MEMBER":
+            admins = database.scalar(
+                select(func.count()).select_from(FamilyMembership).where(FamilyMembership.family_id == family_access.family.id, FamilyMembership.role == "ADMIN")
+            )
+            if admins <= 1:
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A family needs at least one admin. Make someone else an admin first.")
+        membership.role = changes["role"]
     database.commit()
     database.refresh(membership)
     return _member_response(membership, member)

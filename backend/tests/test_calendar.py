@@ -267,16 +267,16 @@ def test_availability_flags_only_people_busy_at_the_task_time(family, feeds, fak
     assert _busy(admin, task) == [member.user_id]
     assert _busy(admin, undated) == []
 
-    # An appointment in the app counts too, without any linked calendar.
-    appointment = admin.post("/api/families/me/appointments", json={"title": "Dentist", "starts_at": (due + timedelta(minutes=30)).isoformat(), "attendee_id": admin.user_id}).json()
+    # When everyone is busy, anyone may be suggested.
+    feeds.content["https://calendar.example.com/feeds/alice.ics"] = _feed(_event("alice", due + timedelta(minutes=30), due + timedelta(hours=1), "Dentist"))
+    assert admin.put("/api/calendar", json={"url": "https://calendar.example.com/feeds/alice.ics"}).status_code == 200
     assert sorted(_busy(member, task)) == sorted([admin.user_id, member.user_id])
     fake_model.answer = {"member_id": admin.user_id, "reason": "Fine."}
     admin.post(f"/api/families/me/tasks/{task['id']}/suggestion?timezone=Asia/Singapore")
     prompt = fake_model.requests[0]["prompt"]
-    assert '"title": "Dentist"' in prompt and prompt.count('"busy_at_task_time": true') == 2
-    # When everyone is busy, anyone may be suggested.
+    assert prompt.count('"busy_at_task_time": true') == 2 and "Dentist" not in prompt
     assert sorted(fake_model.requests[0]["schema"]["properties"]["member_id"]["enum"]) == sorted([admin.user_id, member.user_id])
-    admin.delete(f"/api/families/me/appointments/{appointment['id']}")
+    admin.delete("/api/calendar")
     assert _busy(admin, task) == [member.user_id]
 
     # No model call is made for availability, and other families cannot ask.

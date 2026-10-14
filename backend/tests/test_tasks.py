@@ -205,3 +205,40 @@ def test_moving_an_overdue_task_allows_a_new_reminder(family):
     admin.patch(f"/api/families/me/tasks/{task['id']}", json={"due_at": "2030-01-02T09:00:00Z"})
     with engine.begin() as connection:
         assert connection.execute(text("SELECT overdue_reminded_at FROM tasks")).scalar() is None
+
+
+def test_a_database_from_before_the_removals_is_updated_in_place(family):
+    """Older databases had an appointments table and category/recipient columns, with a CHECK constraint on category."""
+    from sqlalchemy import inspect, text
+
+    from app.database import engine
+    from app.init_db import initialize_database
+
+    admin, member = family
+    task = _create_task(admin, detail="Oak Pharmacy", location="Oak Pharmacy", due_at="2030-01-01T09:00:00Z", assignee_id=member.user_id, priority="High")
+    with engine.begin() as connection:
+        connection.execute(text("ALTER TABLE tasks ADD COLUMN category VARCHAR(16) NOT NULL DEFAULT 'Check-in' CHECK (category IN ('Appointment', 'Medication', 'Check-in'))"))
+        connection.execute(text("ALTER TABLE tasks ADD COLUMN recipient VARCHAR(80) NOT NULL DEFAULT 'Shared household'"))
+        connection.execute(text("CREATE TABLE appointments (id CHAR(32) PRIMARY KEY, title VARCHAR(120))"))
+        connection.execute(text("INSERT INTO appointments VALUES ('a', 'GP review')"))
+
+    initialize_database()
+
+    inspector = inspect(engine)
+    assert "appointments" not in inspector.get_table_names()
+    columns = {column["name"] for column in inspector.get_columns("tasks")}
+    assert "category" not in columns and "recipient" not in columns
+    assert {index["name"] for index in inspector.get_indexes("tasks")} >= {"ix_tasks_family_id", "ix_tasks_assignee_id"}
+    # The task, and the history that points at it, survived the rebuild.
+    listed = admin.get("/api/families/me/tasks").json()
+    assert len(listed) == 1
+    kept = listed[0]
+    assert (kept["id"], kept["title"], kept["location"], kept["priority"], kept["assignee_id"]) == (task["id"], "Pick up medication", "Oak Pharmacy", "High", member.user_id)
+    assert [item["action"] for item in kept["activity"]] == ["Created", "Assigned"]
+    # New tasks can be created, completed and deleted in the rebuilt table.
+    fresh = _create_task(admin, title="After the rebuild")
+    assert admin.post(f"/api/families/me/tasks/{fresh['id']}/complete").json()["status"] == "Completed"
+    assert admin.delete(f"/api/families/me/tasks/{fresh['id']}").status_code == 204
+    # Running it again changes nothing.
+    initialize_database()
+    assert len(admin.get("/api/families/me/tasks").json()) == 1

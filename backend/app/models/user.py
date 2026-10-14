@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import BigInteger, CheckConstraint, Index, String, Text, Uuid, func
+from sqlalchemy import BigInteger, CheckConstraint, Index, Integer, String, Text, Uuid, func
 from sqlalchemy.orm import Mapped, mapped_column, validates
 
 from app.database import Base, UTCDateTime
@@ -34,6 +34,13 @@ class User(Base):
     # One-time code carried by the "open Telegram" link while linking is in progress.
     telegram_link_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
     telegram_link_expires_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    # A forgotten-password code that was sent to the person's Telegram: its hash, when it stops working,
+    # and how many wrong guesses have been made against it.
+    reset_code_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    reset_code_expires_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    reset_code_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    # Which cards the person shows on their Overview, in order, as a JSON list of card ids. None means the default set.
+    overview_layout: Mapped[str | None] = mapped_column(Text, nullable=True)
     # IANA time zone last reported by the person's browser, so messages sent to them show local times.
     timezone: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False, server_default=func.now())

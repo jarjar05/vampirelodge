@@ -1,3 +1,4 @@
+import json
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
@@ -11,12 +12,15 @@ from app.dependencies.auth import AuthenticatedUser
 from app.models import User
 from app.schemas.auth import (
     AuthUserResponse,
+    ForgotPasswordRequest,
     LoginRequest,
     PasswordChangeRequest,
     ProfileUpdateRequest,
     RegisterRequest,
+    ResetPasswordRequest,
     SignInDetailsUpdateRequest,
 )
+from app.services import password_reset
 from app.services.auth import create_session, revoke_other_sessions, revoke_session
 from app.utils.passwords import hash_password, verify_password
 
@@ -103,6 +107,8 @@ def update_profile(payload: ProfileUpdateRequest, user: AuthenticatedUser, datab
         user.name = changes["name"]
     if "avatar_url" in changes:
         user.avatar_url = changes["avatar_url"]
+    if "overview_layout" in changes:
+        user.overview_layout = None if changes["overview_layout"] is None else json.dumps(changes["overview_layout"])
     database.commit()
     database.refresh(user)
     return user
@@ -136,6 +142,20 @@ def change_password(payload: PasswordChangeRequest, request: Request, user: Auth
     user.password_hash = hash_password(payload.new_password)
     revoke_other_sessions(database, user, request.cookies.get(settings.session_cookie_name))
     database.commit()
+
+
+@router.post("/forgot-password", status_code=status.HTTP_204_NO_CONTENT)
+def forgot_password(payload: ForgotPasswordRequest, database: DatabaseSession) -> None:
+    """Send a reset code to the account's linked Telegram. Always answers the same way, whether or not the account
+    exists or can be reached, so it cannot be used to discover who has an account."""
+    password_reset.send_code(database, payload.email)
+
+
+@router.post("/reset-password", status_code=status.HTTP_204_NO_CONTENT)
+def reset_password(payload: ResetPasswordRequest, database: DatabaseSession) -> None:
+    """Set a new password using the code from Telegram. Signs the account out everywhere."""
+    if not password_reset.reset_with_code(database, payload.email, payload.code, payload.new_password):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="That code is not right or has expired. Ask for a new one.")
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)

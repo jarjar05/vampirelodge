@@ -2,18 +2,15 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ApiError } from "@/api/client";
 import {
   careApi,
-  toAppointment,
   toFamily,
   toFamilyActivity,
   toMember,
   toTask,
-  type ApiAppointment,
   type ApiFamily,
   type ApiFamilyActivity,
   type ApiMember,
   type ApiTask,
   type MemberChanges,
-  type NewAppointment,
   type NewTask,
   type TaskChanges,
 } from "@/api/care";
@@ -25,7 +22,7 @@ function messageFor(error: unknown) {
   return error instanceof Error ? error.message : "Something went wrong. Please try again.";
 }
 
-/** Loads the signed-in user's family, members, tasks, appointments, and activity, and exposes the actions that change them. */
+/** Loads the signed-in user's family, members, tasks, and activity, and exposes the actions that change them. */
 export function useCareData() {
   const [status, setStatus] = useState<Status>("loading");
   const [loadError, setLoadError] = useState("");
@@ -33,22 +30,21 @@ export function useCareData() {
   const [family, setFamily] = useState<ApiFamily | null>(null);
   const [rawMembers, setRawMembers] = useState<ApiMember[]>([]);
   const [rawTasks, setRawTasks] = useState<ApiTask[]>([]);
-  const [rawAppointments, setRawAppointments] = useState<ApiAppointment[]>([]);
   const [rawActivity, setRawActivity] = useState<ApiFamilyActivity[]>([]);
+  // Open tasks whose assignee is busy when the task is due, from linked calendars.
+  const [conflictTaskIds, setConflictTaskIds] = useState<ReadonlySet<string>>(new Set());
 
   const reload = useCallback(async () => {
     try {
       const loadedFamily = await careApi.getFamily();
-      const [members, tasks, appointments, activity] = await Promise.all([
+      const [members, tasks, activity] = await Promise.all([
         careApi.listMembers(),
         careApi.listTasks(),
-        careApi.listAppointments(),
         careApi.listActivity(),
       ]);
       setFamily(loadedFamily);
       setRawMembers(members);
       setRawTasks(tasks);
-      setRawAppointments(appointments);
       setRawActivity(activity);
       setStatus("ready");
     } catch (error) {
@@ -67,10 +63,6 @@ export function useCareData() {
   const members = useMemo(() => rawMembers.map(toMember), [rawMembers]);
   const membersById = useMemo(() => new Map(members.map((member) => [member.id, member])), [members]);
   const tasks = useMemo(() => rawTasks.map((task) => toTask(task, membersById)), [rawTasks, membersById]);
-  const appointments = useMemo(() => {
-    const taskTitlesById = new Map(rawTasks.map((task) => [task.id, task.title]));
-    return rawAppointments.map((appointment) => toAppointment(appointment, membersById, taskTitlesById));
-  }, [rawAppointments, rawTasks, membersById]);
   const activity = useMemo(() => rawActivity.map((item) => toFamilyActivity(item, membersById)), [rawActivity, membersById]);
 
   /** Runs an action; on failure shows the message in the page banner and resolves to undefined. */
@@ -87,6 +79,12 @@ export function useCareData() {
   const refreshActivity = useCallback(() => {
     careApi.listActivity().then(setRawActivity).catch(() => undefined);
   }, []);
+
+  // Worked out on the server, which is the only place that can read linked calendars. A failure just means no flags.
+  const refreshConflicts = useCallback(() => {
+    careApi.listTaskConflicts().then((ids) => setConflictTaskIds(new Set(ids))).catch(() => undefined);
+  }, []);
+  useEffect(() => { if (status === "ready") refreshConflicts(); }, [status, rawTasks, refreshConflicts]);
 
   const applyTask = useCallback((updated: ApiTask) => {
     setRawTasks((current) => current.some((task) => task.id === updated.id)
@@ -112,8 +110,8 @@ export function useCareData() {
     family: family ? toFamily(family) : null,
     members,
     tasks,
-    appointments,
     activity,
+    conflictTaskIds,
 
     createFamily: (name: string) => run(async () => { await careApi.createFamily(name); await reload(); }),
     joinFamily: (inviteCode: string) => run(async () => { await careApi.joinFamily(inviteCode); await reload(); }),
@@ -123,7 +121,6 @@ export function useCareData() {
       setFamily(null);
       setRawMembers([]);
       setRawTasks([]);
-      setRawAppointments([]);
       setRawActivity([]);
       setStatus("no-family");
       return true;
@@ -145,19 +142,18 @@ export function useCareData() {
     assignTask: (taskId: string, assigneeId: string | null) => run(async () => applyTask(await careApi.assignTask(taskId, assigneeId))),
     /** Resolves to true when the changes were saved. */
     updateTask: (taskId: string, changes: TaskChanges) => run(async () => { applyTask(await careApi.updateTask(taskId, changes)); return true; }),
+    /** Resolves to true once the task is gone. */
+    deleteTask: (taskId: string) => run(async () => {
+      await careApi.deleteTask(taskId);
+      // Deleting a repeating task also changes the rest of its series, so fetch the list again.
+      setRawTasks(await careApi.listTasks());
+      refreshActivity();
+      return true;
+    }),
     stopRepeating: (taskId: string) => run(async () => { await careApi.stopRepeating(taskId); setRawTasks(await careApi.listTasks()); }),
     completeTask: taskAction("complete"),
     reopenTask: taskAction("reopen"),
 
-    createAppointment: (appointment: NewAppointment) => run(async () => {
-      const created = await careApi.createAppointment(appointment);
-      setRawAppointments((current) => [...current, created].sort((first, second) => new Date(first.starts_at).getTime() - new Date(second.starts_at).getTime()));
-      return true;
-    }),
-    deleteAppointment: (appointmentId: string) => run(async () => {
-      await careApi.deleteAppointment(appointmentId);
-      setRawAppointments((current) => current.filter((appointment) => appointment.id !== appointmentId));
-    }),
   };
 }
 

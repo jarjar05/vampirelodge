@@ -25,6 +25,8 @@ class TelegramDraft(Base):
     due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     due_time: Mapped[time | None] = mapped_column(Time, nullable=True)
     priority: Mapped[str] = mapped_column(String(8), nullable=False, default="Normal")
+    # "daily", "weekly", "biweekly" or "monthly" when the task should repeat. Needs a due date to count from.
+    recurrence: Mapped[str | None] = mapped_column(String(12), nullable=True)
     # While the bot is asking for the details one question at a time, the question it is waiting on:
     # "title", "date", "time" or "location". None once the draft is complete.
     step: Mapped[str | None] = mapped_column(String(12), nullable=True)

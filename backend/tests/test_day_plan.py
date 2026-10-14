@@ -37,7 +37,7 @@ def _in_listed_order(request):
     return {"summary": "You have a few things on today.", "steps": [{"task_id": task_id, "note": "Due soon."} for task_id in ids]}
 
 
-def test_plan_covers_only_my_open_tasks_and_my_appointments(family, fake_model):
+def test_plan_covers_only_my_open_tasks(family, fake_model):
     admin, member = family
     pharmacy = _task(admin, "Pick up medication", location="Oak Pharmacy", due_at=_in(3), priority="High", assignee_id=admin.user_id)
     overdue = _task(admin, "Pay medical bill", due_at=_in(-5), assignee_id=admin.user_id)
@@ -45,8 +45,6 @@ def test_plan_covers_only_my_open_tasks_and_my_appointments(family, fake_model):
     admin.post(f"/api/families/me/tasks/{done['id']}/complete")
     _task(admin, "Walk the dog", assignee_id=member.user_id)
     _task(admin, "Nobody has this yet")
-    admin.post("/api/families/me/appointments", json={"title": "GP review", "place": "Riverside Practice", "starts_at": _in(24), "attendee_id": admin.user_id})
-    admin.post("/api/families/me/appointments", json={"title": "Dentist for Ben", "starts_at": _in(24), "attendee_id": member.user_id})
     fake_model.answer = {
         "summary": "  Pay the overdue bill first, then collect the medication.  ",
         "steps": [{"task_id": pharmacy["id"], "note": "Due this afternoon."}, {"task_id": overdue["id"], "note": "Already overdue."}],
@@ -65,8 +63,7 @@ def test_plan_covers_only_my_open_tasks_and_my_appointments(family, fake_model):
     prompt = request["prompt"]
     assert "Pick up medication" in prompt and "Oak Pharmacy" in prompt and "Pay medical bill" in prompt
     assert '"overdue": true' in prompt and '"overdue": false' in prompt
-    assert "GP review" in prompt and "Riverside Practice" in prompt
-    for absent in ("Call Mum", "Walk the dog", "Nobody has this yet", "Dentist for Ben"):
+    for absent in ("Call Mum", "Walk the dog", "Nobody has this yet"):
         assert absent not in prompt
     schema = request["schema"]
     step_schema = schema["properties"]["steps"]["items"]

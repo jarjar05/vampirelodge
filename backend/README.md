@@ -99,6 +99,19 @@ The password is entered with terminal input hidden.
 
 Sign-up is open to anyone who can reach the API. Emails and phone numbers are not verified (no confirmation email or SMS), and there is no rate limiting or forgotten-password flow; add these before exposing this beyond local use. Set `SESSION_COOKIE_SECURE=true` when serving over HTTPS.
 
+### Forgotten passwords
+
+The app has no way to send email, so a reset code goes to the account's linked Telegram.
+
+- `POST /api/auth/forgot-password` with `{"email":"..."}` always answers `204`, whether or not the account exists or has Telegram, so it cannot be used to find out who has an account. If it can, it sends a 6-digit code that works for 15 minutes; a new one is sent at most once a minute.
+- `POST /api/auth/reset-password` with `{"email":"...","code":"123456","new_password":"..."}` sets the password and signs the account out everywhere. Five wrong guesses void the code.
+
+For someone without Telegram, whoever runs the server resets it from the terminal:
+
+```sh
+python -m app.reset_password you@example.com
+```
+
 ## Family API
 
 All family endpoints require the authenticated session cookie. A user can belong to one family at a time. Family access is resolved from the authenticated user; clients do not supply a family ID to select the family.
@@ -112,19 +125,22 @@ All family endpoints require the authenticated session cookie. A user can belong
 - `POST /api/families/join` joins by invite code. Request body: `{"invite_code":"ABC123"}`. Invalid codes and existing memberships are rejected.
 - `POST /api/families/leave` removes the authenticated user's membership. The final admin cannot leave until another admin exists.
 
-`DELETE /api/families/me` with `{"confirm_name":"<the family's name>"}` deletes the family. Admin only. It removes the family's tasks, task history, appointments, knowledge notes and their search chunks, bot drafts and memberships, then the family itself. Members keep their accounts and can create or join another family; sample members made by the demo seeder are deleted with it. It cannot be undone.
+`PATCH /api/families/me/members/{user_id}` also accepts `"role": "ADMIN"` or `"MEMBER"`, from an admin only. A family always keeps at least one admin, so the last one cannot step down until another is made.
 
-## Tasks, activity, and appointments API
+`DELETE /api/families/me` with `{"confirm_name":"<the family's name>"}` deletes the family. Admin only. It removes the family's tasks, task history, knowledge notes and their search chunks, bot drafts and memberships, then the family itself. Members keep their accounts and can create or join another family; sample members made by the demo seeder are deleted with it. It cannot be undone.
+
+## Tasks and activity API
 
 These routes require an authenticated family member and only ever read or change that member's own family.
 
 - `GET /api/families/me/tasks` lists tasks, each with its activity history.
-- `POST /api/families/me/tasks` creates a task. Body: `{"title":"Pick up medication","detail":"Oak Pharmacy","location":null,"due_at":"2026-10-12T17:30:00+08:00","category":"Medication","priority":"High","assignee_id":null}`. Only `title` is required. `priority` is `High`, `Normal` (the default), or `Low`, and is chosen by whoever creates the task.
-- `PATCH /api/families/me/tasks/{task_id}` changes a task's `title`, `detail`, `location`, `due_at` or `priority`. Only the fields sent are changed; `null` clears `location` or `due_at` (a repeating task must keep its due date). Each change is recorded in the task's history, and moving the due date allows a new overdue reminder. Moving a repeating task's date carries on to the occurrences that follow.
+- `POST /api/families/me/tasks` creates a task. Body: `{"title":"Pick up medication","detail":"Oak Pharmacy","location":null,"due_at":"2026-10-12T17:30:00+08:00","priority":"High","assignee_id":null}`. Only `title` is required. `priority` is `High`, `Normal` (the default), or `Low`, and is chosen by whoever creates the task.
+- `PATCH /api/families/me/tasks/{task_id}` changes a task's `title`, `detail`, `location`, `due_at` or `priority`. Only the fields sent are changed; `null` clears `location` or `due_at` (a repeating task must keep its due date). `recurrence` starts, changes or (with `null`) stops the repeat for the whole series. Each change is recorded in the task's history, and moving the due date allows a new overdue reminder. Moving a repeating task's date carries on to the occurrences that follow.
+- `DELETE /api/families/me/tasks/{task_id}` removes a task and its history. Deleting a repeating task also stops the series; earlier occurrences are kept. Anyone in the family can.
+- `GET /api/families/me/tasks/conflicts?timezone=...` returns `{"task_ids":[...]}`: open tasks whose assignee has a calendar event within an hour of the due time. `GET /api/families/me/tasks/{task_id}/quick-suggestion?timezone=...` returns `{"member_id":"...","reason":"...","busy_member_ids":[...]}` from plain rules: free at that time, then best placed by role (working-age relatives, then a helper, then elderly relatives and children), then fewest open tasks. Neither calls the model.
 - `POST /api/families/me/tasks/{task_id}/assign` sets or clears the assignee. Body: `{"assignee_id":"<user id>"}` or `{"assignee_id":null}`. The assignee must belong to the family. There is no accept or decline step: an assigned task is simply that person's until it is completed or reassigned.
 - `POST /api/families/me/tasks/{task_id}/complete` and `/reopen` can be called by any family member.
 - `GET /api/families/me/activity?limit=20` returns the family's most recent task activity, newest first.
-- `GET /api/families/me/appointments`, `POST /api/families/me/appointments`, and `DELETE /api/families/me/appointments/{appointment_id}` manage appointments. Create body: `{"title":"GP review","place":"Riverside Family Practice","starts_at":"2026-10-11T10:30:00+08:00","attendee_id":null,"related_task_id":null}`.
 
 A task can repeat: send `"recurrence"` as `daily`, `weekly`, `biweekly` or `monthly` when creating it (a due time is required). A series always has one occurrence waiting. The next one is created when the latest is completed, or when its due time passes and someone next loads the task list; a long gap produces one new occurrence, not one per missed period. `POST /api/families/me/tasks/{task_id}/stop-repeating` ends the series and keeps the occurrences that exist.
 
@@ -137,7 +153,7 @@ These routes require an authenticated family member. The backend obtains the fam
 Each document is stored whole in the SQL database, which is the source of truth, and split into overlapping chunks of at most 900 characters that are indexed in ChromaDB for search. Chunking matters because the default embedding model reads only about 256 tokens: without it, only the start of a long document would be searchable.
 
 - `GET /api/families/me/knowledge` lists the family's documents, newest first, with their full content.
-- `POST /api/families/me/knowledge` adds one document. Body: `{"title":"Medication list","category":"medication","content":"Care notes..."}`. `title` defaults to `source`, and `source` (where the text came from) defaults to "Added in the app".
+- `POST /api/families/me/knowledge` adds one document. Body: `{"title":"Medication list","content":"Care notes..."}`. `title` defaults to `source`, and `source` (where the text came from) defaults to "Added in the app".
 - `POST /api/families/me/knowledge/batch` adds 1–100 documents using a `{"documents":[...]}` body.
 - `GET /api/families/me/knowledge/search?query=medication&limit=5` returns the best-matching excerpts from the authenticated family's documents, each with its `document_id` and `title`. An optional `category` query parameter narrows results.
 - `DELETE /api/families/me/knowledge/{document_id}` deletes the document and all of its chunks, only when it belongs to the authenticated user's family.
@@ -155,7 +171,7 @@ Restart the server after changing `.env`. `LLM_MODEL` is optional and defaults t
 
 - `POST /api/families/me/tasks/{task_id}/suggestion` asks the model who should take a task and returns `{"member_id":"...","reason":"...","note_titles":["..."]}`. It only suggests; nothing is assigned. The prompt contains the task, every family member's role, availability, and open tasks, and up to four knowledge excerpts retrieved for the task. The answer is constrained to the ids of that family's members.
 
-- `POST /api/families/me/day-plan` with `{"timezone":"Asia/Singapore","refresh":false}` summarises the signed-in person's open tasks and suggests an order, returning `{"summary":"...","steps":[{"task_id":"...","note":"..."}],"generated_at":"..."}`. The last plan is kept in memory and reused until that person's tasks, appointments or calendar busy times change, a new day starts, or `refresh` is true. With no open tasks it returns an empty plan without calling the model.
+- `POST /api/families/me/day-plan` with `{"timezone":"Asia/Singapore","refresh":false}` summarises the signed-in person's open tasks and suggests an order, returning `{"summary":"...","steps":[{"task_id":"...","note":"..."}],"generated_at":"..."}`. The last plan is kept in memory and reused until that person's tasks or calendar busy times change, a new day starts, or `refresh` is true. With no open tasks it returns an empty plan without calling the model.
 
 - `POST /api/families/me/tasks/from-document` reads a letter or email and drafts tasks from it. Send either a file as `{"filename":"letter.pdf","content_type":"application/pdf","data_base64":"..."}` or pasted text as `{"text":"..."}`, optionally with `timezone`. It returns `{"summary":"...","tasks":[{"title":"...","detail":"...","location":"...","due_date":"2026-11-14","due_time":"09:00:00","priority":"Normal"}]}`, at most five drafts. Nothing is created or stored: the app puts a draft into the new-task form, and the task exists only once the person submits it. Supported files, up to 5 MB: PDF with a text layer, JPEG/PNG/WebP/GIF pictures (read by the model), `.docx`, `.eml`, and plain text. The app converts photos to JPEG on a white background first, because the model cannot read dark text on a transparent picture.
 
@@ -170,9 +186,9 @@ A person can link their own calendar by pasting its sharing link (the `.ics` or 
 - `GET /api/calendar` returns `{"connected":true,"synced_at":"...","event_count":3,"error":null}`. The link itself is never returned.
 - `PUT /api/calendar` with `{"url":"webcal://..."}` checks that the link can be read, then saves it. `POST /api/calendar/sync` reads it again now. `DELETE /api/calendar` unlinks it.
 
-Only busy times are used: event titles, places and notes are never stored or sent to the model. Events marked free or cancelled are skipped. Feeds are downloaded at most every 15 minutes per person and held in memory. The day plan is given the person's busy times and appointments for the next 30 days; an assignment suggestion is given each member's app appointments and, for linked members, busy times on the day the task is due.
+Only busy times are used: event titles, places and notes are never stored or sent to the model. Events marked free or cancelled are skipped. Feeds are downloaded at most every 15 minutes per person and held in memory. The day plan is given the person's busy times for the next 30 days; an assignment suggestion is given each linked member's busy times on the day the task is due.
 
-`GET /api/families/me/tasks/{task_id}/availability?timezone=...` returns `{"busy_member_ids":[...]}`: members with an app appointment or a calendar event within an hour of the task's due time. It makes no model call, and the app uses it to keep busy people out of the default suggestion.
+`GET /api/families/me/tasks/{task_id}/availability?timezone=...` returns `{"busy_member_ids":[...]}`: members with a calendar event within an hour of the task's due time. It makes no model call, and the app uses it to keep busy people out of the default suggestion.
 
 The link is stored in the `users` table as plain text, because it has to be read back to download the feed. Only `https` links to public addresses are downloaded; links to this machine or a private network are refused.
 
@@ -193,6 +209,7 @@ The bot uses long polling, so it needs no public web address and works on a lapt
 What it does:
 
 - **Overdue reminders.** Once a minute it looks for open tasks whose due time has passed in the last 24 hours and whose assignee has linked Telegram, and sends each one once, with a Done button that marks the task complete. Reassigning or reopening a task allows a new reminder. People who have not linked Telegram get nothing.
+- **Notices.** The assignee is messaged when someone else gives them a task or changes one of theirs, with the same Done button. Nobody is messaged about their own actions.
 - **Tasks from messages.** A message sent or forwarded to the bot in a private chat is read by the model and offered back as up to three task drafts, each with Add task and Ignore buttons. Nothing is created until Add is pressed. After adding, the bot suggests an assignee using the same logic as the app and offers to assign.
 - **Groups.** The bot acts only on a message that mentions it by name, or on the message being replied to when the reply mentions it. Every other group message is ignored without being read. Leave the bot's privacy mode on (BotFather's default) so Telegram does not even deliver the rest.
 
@@ -204,3 +221,13 @@ Only people who linked their account can use the bot, and a draft can be confirm
 - `POST /api/telegram/link` with `{"timezone":"Asia/Singapore"}` returns a one-time `https://t.me/<bot>?start=<code>` address, valid for 15 minutes. `DELETE /api/telegram` unlinks.
 
 All Telegram calls go through `app/services/telegram_api.py`; the bot's behaviour is in `app/services/telegram_bot.py`, and the loop that runs it in `app/services/telegram_runner.py`.
+
+## Browser tests
+
+The main flows are also tested end to end in a real browser: signing up and in, creating, completing, editing and deleting a task, the calendar, and customising the Overview. From the project root:
+
+```sh
+npm run test:e2e
+```
+
+They start their own backend on port 8100 with a fresh database under `backend/data/e2e` and no AI or Telegram keys, plus their own frontend on port 5199, so they never touch your data or cost anything, and they also exercise the app's no-AI fallbacks. They use the Google Chrome installed on the computer. The test files are in `e2e/`.

@@ -67,6 +67,8 @@ class FamilyMemberUpdateRequest(BaseModel):
     relationship_label: str | None = Field(default=None, max_length=80)
     availability: Availability | None = None
     availability_note: str | None = Field(default=None, max_length=200)
+    # Only an admin can change this, and a family always keeps at least one admin.
+    role: Literal["ADMIN", "MEMBER"] | None = None
 
     @field_validator("relationship_label", "availability_note")
     @classmethod
