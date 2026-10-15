@@ -41,7 +41,9 @@ _is_sqlite = make_url(settings.database_url).get_backend_name() == "sqlite"
 
 engine = create_engine(
     settings.database_url,
-    pool_pre_ping=True,
+    # Kept connections can go stale, so each is checked before use. As a function every request opens a fresh one,
+    # so the check would only cost a round trip.
+    pool_pre_ping=not settings.serverless,
     # FastAPI runs sync endpoints in a thread pool, so one request can touch a connection from several threads.
     # Postgres: Supabase's transaction pooler cannot keep prepared statements, so psycopg must not make any.
     connect_args={"check_same_thread": False} if _is_sqlite else {"prepare_threshold": None},

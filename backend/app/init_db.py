@@ -92,13 +92,29 @@ def _fill_task_assignees() -> None:
         ))
 
 
+def _schema_is_current() -> bool:
+    """True when every table and column the app declares already exists, found with a single query, so a function
+    waking up on Vercel need not inspect each table in turn. Postgres only; SQLite always takes the full path."""
+    if engine.dialect.name != "postgresql":
+        return False
+    with engine.connect() as connection:
+        rows = connection.execute(text(
+            "SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = current_schema()"
+        )).all()
+    existing = {(table, column) for table, column in rows}
+    declared = {(table.name, column.name) for table in Base.metadata.sorted_tables for column in table.columns}
+    retired = {("tasks", column) for column in _RETIRED_TASK_COLUMNS} | {(table, column) for table, column in existing if table in _RETIRED_TABLES}
+    return declared <= existing and not (retired & existing)
+
+
 def initialize_database() -> None:
-    """Create tables declared by the application's SQLAlchemy models."""
-    Base.metadata.create_all(bind=engine)
-    _retire_removed_fields()
-    _add_missing_columns()
-    _retire_in_progress_status()
-    _fill_task_assignees()
+    """Create tables declared by the application's SQLAlchemy models, and bring an older database up to date."""
+    if not _schema_is_current():
+        Base.metadata.create_all(bind=engine)
+        _retire_removed_fields()
+        _add_missing_columns()
+        _retire_in_progress_status()
+        _fill_task_assignees()
 
 
 if __name__ == "__main__":
