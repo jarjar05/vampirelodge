@@ -1,8 +1,6 @@
 from dataclasses import dataclass
 from typing import Any, Sequence
 
-import chromadb
-
 from app.config import settings
 
 COLLECTION_NAME = "family_care_knowledge"
@@ -37,6 +35,9 @@ def initialize_collection() -> Any:
     """Create or open the persistent family-care knowledge collection."""
     global _client, _collection
     try:
+        # Imported here, so the app runs without ChromaDB installed when notes are searched in the database.
+        import chromadb
+
         settings.chroma_persist_directory.mkdir(parents=True, exist_ok=True)
         _client = chromadb.PersistentClient(path=str(settings.chroma_persist_directory))
         _collection = _client.get_or_create_collection(

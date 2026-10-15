@@ -110,7 +110,7 @@ def test_without_an_api_key_no_request_is_made(family, monkeypatch):
 
     response = admin.post(f"/api/families/me/tasks/{task['id']}/suggestion")
     assert response.status_code == 503
-    assert "OPENAI_API_KEY" in response.json()["detail"]
+    assert "switched off" in response.json()["detail"]
 
 
 class FakeOpenAIClient:
@@ -189,8 +189,8 @@ def test_api_errors_become_readable_messages(monkeypatch):
         return SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
 
     cases = [
-        (openai.AuthenticationError("bad", response=httpx.Response(401, request=request), body=None), "rejected the API key"),
-        (openai.NotFoundError("no model", response=httpx.Response(404, request=request), body=None), "was not found"),
+        (openai.AuthenticationError("bad", response=httpx.Response(401, request=request), body=None), "unavailable right now"),
+        (openai.NotFoundError("no model", response=httpx.Response(404, request=request), body=None), "unavailable right now"),
         (openai.RateLimitError("slow", response=httpx.Response(429, request=request), body=None), "busy or the account is out of credit"),
         (openai.APIConnectionError(request=request), "Could not reach"),
     ]

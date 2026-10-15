@@ -143,7 +143,7 @@ def test_linking_needs_a_configured_bot_and_a_signed_in_user(login, monkeypatch)
     client = login("Alice")
     assert client.get("/api/telegram").json()["configured"] is False
     response = client.post("/api/telegram/link", json={})
-    assert response.status_code == 503 and "TELEGRAM_BOT_TOKEN" in response.json()["detail"]
+    assert response.status_code == 503 and "not set up" in response.json()["detail"]
     assert TestClient(app).get("/api/telegram").status_code == 401
 
 

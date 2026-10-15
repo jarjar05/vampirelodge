@@ -37,17 +37,6 @@ python -m app.init_db
 
 The initializer uses SQLAlchemy `create_all` for a lightweight hackathon setup. It creates missing tables, adds new nullable or defaulted columns to existing ones, and removes the tables and columns of features that have been taken out (appointments, and the task category and "for whom" fields), keeping every task. The server runs it on startup too. It does not rename or retype columns, and it does not replace schema migrations for production.
 
-### Optional: PostgreSQL
-
-To run against PostgreSQL instead, start the bundled service from the `backend` directory and point `DATABASE_URL` in `.env` at it (the commented line in `.env.example` shows the format):
-
-```sh
-docker compose up -d db
-python -m app.init_db
-```
-
-Its database files live under `backend/data/postgres/`. The service is bound to localhost only and uses trust authentication for local development. Do not expose this configuration to a network or use it for production. `.env` sets the database role and connection URL; edit those values together if you change the role. SQLite and PostgreSQL hold separate data; switching does not copy anything across.
-
 ChromaDB uses a separate persistent local store at `backend/data/chroma/` by default. Configure `CHROMA_PERSIST_DIR` in `.env` to change it. The SQL database remains the source of truth for users, families, tasks, and application state; ChromaDB is only for semantic knowledge retrieval. ChromaDB is initialized by FastAPI and must not be accessed by the React app.
 
 Start the development server from the `backend` directory:

@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.models import Family, FamilyMembership, KnowledgeDocument, Task, TaskActivity, TelegramDraft, User
 from app.seed_demo import DEMO_EMAIL_DOMAIN
+from app.config import settings
 from app.services import calendar_feed, chroma_service, day_plan
 
 
@@ -20,7 +21,8 @@ def delete_family(database: Session, family: Family) -> None:
     ).all()
 
     # Search chunks live outside the database, so they are removed first, one document at a time.
-    for document_id in database.scalars(select(KnowledgeDocument.id).where(KnowledgeDocument.family_id == family_id)).all():
+    searched_by_chroma = settings.knowledge_search != "database"
+    for document_id in database.scalars(select(KnowledgeDocument.id).where(KnowledgeDocument.family_id == family_id)).all() if searched_by_chroma else []:
         try:
             chroma_service.delete_document_chunks(str(document_id), str(family_id))
         except chroma_service.ChromaServiceError:

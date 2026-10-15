@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from sqlalchemy import DateTime, create_engine, event
 from sqlalchemy.engine import Dialect, make_url
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
+from sqlalchemy.pool import NullPool
 from sqlalchemy.types import TypeDecorator
 
 from app.config import settings
@@ -42,7 +43,10 @@ engine = create_engine(
     settings.database_url,
     pool_pre_ping=True,
     # FastAPI runs sync endpoints in a thread pool, so one request can touch a connection from several threads.
-    connect_args={"check_same_thread": False} if _is_sqlite else {},
+    # Postgres: Supabase's transaction pooler cannot keep prepared statements, so psycopg must not make any.
+    connect_args={"check_same_thread": False} if _is_sqlite else {"prepare_threshold": None},
+    # As a function, connections are not kept between requests; Supabase's pooler keeps them instead.
+    **({"poolclass": NullPool} if settings.serverless else {}),
 )
 
 if _is_sqlite:

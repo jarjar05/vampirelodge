@@ -3,9 +3,10 @@ import tempfile
 from collections.abc import Callable, Iterator
 from pathlib import Path
 
-# Point the app at a throwaway SQLite database before it is imported.
+# Point the app at a throwaway SQLite database before it is imported. TEST_DATABASE_URL runs the same tests on
+# another database instead, such as an empty Postgres one; every test wipes it, so never point it at real data.
 _TEST_DIR = Path(tempfile.mkdtemp(prefix="family-care-tests-"))
-os.environ["DATABASE_URL"] = f"sqlite:///{_TEST_DIR / 'test.db'}"
+os.environ["DATABASE_URL"] = os.environ.get("TEST_DATABASE_URL") or f"sqlite:///{_TEST_DIR / 'test.db'}"
 os.environ["CHROMA_PERSIST_DIR"] = str(_TEST_DIR / "chroma")
 # Tests never talk to the real bot, even when backend/.env holds a token.
 os.environ["TELEGRAM_BOT_TOKEN"] = ""

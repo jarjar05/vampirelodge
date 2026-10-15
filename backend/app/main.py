@@ -1,7 +1,8 @@
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
@@ -15,17 +16,33 @@ from app.routes.my_schedule import router as my_schedule_router
 from app.routes.schedule import router as schedule_router
 from app.routes.tasks import router as tasks_router
 from app.routes.telegram import router as telegram_router
-from app.services import telegram_runner
+from app.services import serverless, telegram_runner
 from app.services.chroma_service import initialize_collection
+
+
+_prepared = False
+
+
+def prepare() -> None:
+    """Get everything ready before the first request. Runs once, however the app is started."""
+    global _prepared
+    if _prepared:
+        return
+    _prepared = True
+    # Creates missing tables and adds columns introduced since the database was made.
+    initialize_database()
+    if settings.knowledge_search != "database":
+        initialize_collection()
+    if settings.serverless:
+        serverless.connect_telegram()
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-    # Creates missing tables and adds columns introduced since the database file was made.
-    initialize_database()
-    initialize_collection()
-    # Does nothing unless TELEGRAM_BOT_TOKEN is set.
-    telegram_runner.start()
+    prepare()
+    # On a computer the bot waits for messages itself. Does nothing unless TELEGRAM_BOT_TOKEN is set.
+    if not settings.serverless:
+        telegram_runner.start()
     yield
     telegram_runner.stop()
 
@@ -39,6 +56,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+if settings.serverless:
+    @app.middleware("http")
+    async def send_reminders_on_the_way(request: Request, call_next):  # type: ignore[no-untyped-def]
+        # With nothing running in the background, overdue reminders are checked after ordinary requests.
+        response = await call_next(request)
+        await run_in_threadpool(serverless.remind_if_due)
+        return response
 
 app.include_router(health_router)
 app.include_router(auth_router)

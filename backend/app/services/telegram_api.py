@@ -31,7 +31,7 @@ def is_configured() -> bool:
 def _call(method: str, payload: dict[str, Any] | None = None, timeout: float = REQUEST_TIMEOUT_SECONDS) -> Any:
     token = os.getenv("TELEGRAM_BOT_TOKEN")
     if not token:
-        raise TelegramError("Telegram is not set up. Add TELEGRAM_BOT_TOKEN to backend/.env.")
+        raise TelegramError("Telegram is not set up on this server.")
     try:
         # The token is part of the address, so the address is never logged or put in an error message.
         response = httpx.post(f"{API_ROOT}/bot{token}/{method}", json=payload or {}, timeout=timeout)
@@ -83,3 +83,18 @@ def edit_message(chat_id: int, message_id: int, text: str, buttons: list[tuple[s
 def answer_callback(callback_id: str, text: str | None = None) -> None:
     """Stop the spinner on a pressed button, optionally showing a short notice to the person who pressed it."""
     _call("answerCallbackQuery", {"callback_query_id": callback_id, **({"text": text[:190]} if text else {})})
+
+
+# The kinds of update the bot acts on; Telegram sends nothing else to the webhook.
+WEBHOOK_UPDATES = ["message", "callback_query"]
+
+
+def ensure_webhook(url: str, secret: str) -> bool:
+    """Point Telegram at `url` for new messages, unless it already is. Returns True when it had to be changed.
+
+    Telegram sends `secret` back with every delivery, so the webhook can tell real deliveries from anyone else's."""
+    current = _call("getWebhookInfo")
+    if current.get("url") == url:
+        return False
+    _call("setWebhook", {"url": url, "secret_token": secret, "allowed_updates": WEBHOOK_UPDATES, "drop_pending_updates": False})
+    return True

@@ -5,11 +5,13 @@ import json
 import os
 from typing import Any
 
+import logging
+
 import openai
 
 from app.config import settings
-from app.services import ai_budget
 
+logger = logging.getLogger("uvicorn.error")
 REQUEST_TIMEOUT_SECONDS = 60.0
 # A ceiling on the answer (including any reasoning the model does), not a target.
 MAX_COMPLETION_TOKENS = 8000
@@ -63,10 +65,7 @@ def generate_json(
     Raises LLMUnavailable when no key is set, the API fails, or the model declines.
     """
     if not is_configured():
-        raise LLMUnavailable("AI suggestions are not set up yet. Add OPENAI_API_KEY to backend/.env.")
-    stopped = ai_budget.refusal()
-    if stopped:
-        raise LLMUnavailable(stopped)
+        raise LLMUnavailable("AI features are switched off right now. Everything else works as usual.")
 
     try:
         completion = _get_client().chat.completions.create(
@@ -82,11 +81,13 @@ def generate_json(
             },
         )
     except openai.AuthenticationError as error:
-        raise LLMUnavailable("The AI service rejected the API key. Check OPENAI_API_KEY in backend/.env.") from error
+        logger.error("OpenAI rejected the key: check OPENAI_API_KEY")
+        raise LLMUnavailable("AI features are unavailable right now. Everything else works as usual.") from error
     except openai.PermissionDeniedError as error:
         raise LLMUnavailable("The API key is not allowed to use this AI model.") from error
     except openai.NotFoundError as error:
-        raise LLMUnavailable(f"The AI model \"{settings.llm_model}\" was not found. Check LLM_MODEL in backend/.env.") from error
+        logger.error("OpenAI has no model called %r: check LLM_MODEL", settings.llm_model)
+        raise LLMUnavailable("AI features are unavailable right now. Everything else works as usual.") from error
     except openai.RateLimitError as error:
         # OpenAI also uses this status when the account has run out of credit.
         raise LLMUnavailable("The AI service is busy or the account is out of credit. Try again in a moment.") from error
@@ -94,11 +95,6 @@ def generate_json(
         raise LLMUnavailable("The AI service returned an error. Try again in a moment.") from error
     except openai.APIConnectionError as error:
         raise LLMUnavailable("Could not reach the AI service. Check the internet connection.") from error
-
-    # Counted as soon as it is paid for, even if the answer turns out to be unusable.
-    spent = getattr(completion, "usage", None)
-    if spent is not None:
-        ai_budget.record(spent.prompt_tokens or 0, spent.completion_tokens or 0)
 
     if not completion.choices:
         raise LLMUnavailable("The AI returned an empty answer. Try again.")
