@@ -89,12 +89,9 @@ def answer_callback(callback_id: str, text: str | None = None) -> None:
 WEBHOOK_UPDATES = ["message", "callback_query"]
 
 
-def ensure_webhook(url: str, secret: str) -> bool:
-    """Point Telegram at `url` for new messages, unless it already is. Returns True when it had to be changed.
+def set_webhook(url: str, secret: str) -> None:
+    """Point Telegram at `url` for new messages. Safe to repeat: messages already waiting are kept.
 
-    Telegram sends `secret` back with every delivery, so the webhook can tell real deliveries from anyone else's."""
-    current = _call("getWebhookInfo")
-    if current.get("url") == url:
-        return False
+    Telegram sends `secret` back with every delivery, so the webhook can tell real deliveries from anyone else's. It is
+    set every time, because Telegram never reveals the secret it holds, so a changed one could not be noticed."""
     _call("setWebhook", {"url": url, "secret_token": secret, "allowed_updates": WEBHOOK_UPDATES, "drop_pending_updates": False})
-    return True

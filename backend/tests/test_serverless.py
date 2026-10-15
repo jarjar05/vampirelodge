@@ -93,18 +93,18 @@ def test_a_failing_update_is_still_acknowledged(family, monkeypatch):
     assert response.status_code == 200
 
 
-def test_the_webhook_is_only_changed_when_it_points_elsewhere(monkeypatch):
+def test_starting_up_points_telegram_at_the_webhook_with_the_current_secret(monkeypatch):
     calls = []
-
-    def call(method, payload=None, timeout=None):
-        calls.append((method, payload))
-        return {"url": "https://carecircle.vercel.app/api/telegram/webhook"} if method == "getWebhookInfo" else True
-
-    monkeypatch.setattr(telegram_api, "_call", call)
-    assert telegram_api.ensure_webhook("https://carecircle.vercel.app/api/telegram/webhook", "s") is False
-    assert [method for method, _ in calls] == ["getWebhookInfo"]
-    assert telegram_api.ensure_webhook("https://new.vercel.app/api/telegram/webhook", "s") is True
-    assert calls[-1] == ("setWebhook", {"url": "https://new.vercel.app/api/telegram/webhook", "secret_token": "s", "allowed_updates": ["message", "callback_query"], "drop_pending_updates": False})
+    monkeypatch.setattr(telegram_api, "is_configured", lambda: True)
+    monkeypatch.setattr(telegram_api, "_call", lambda method, payload=None, timeout=None: calls.append((method, payload)) or True)
+    monkeypatch.setattr(serverless.settings.__class__, "public_url", property(lambda self: "https://carecircle.vercel.app"), raising=False)
+    monkeypatch.setenv("TELEGRAM_WEBHOOK_SECRET", "first")
+    serverless.connect_telegram()
+    # A changed secret is passed on too, even though the address is the same.
+    monkeypatch.setenv("TELEGRAM_WEBHOOK_SECRET", "second")
+    serverless.connect_telegram()
+    assert [payload["secret_token"] for _method, payload in calls] == ["first", "second"]
+    assert {(method, payload["url"]) for method, payload in calls} == {("setWebhook", "https://carecircle.vercel.app/api/telegram/webhook")}
 
 
 def test_reminders_are_checked_at_most_every_few_minutes(monkeypatch):

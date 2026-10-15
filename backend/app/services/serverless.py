@@ -29,8 +29,8 @@ def connect_telegram() -> None:
             logger.warning("Telegram webhook not set: TELEGRAM_WEBHOOK_SECRET or the site's address is missing")
         return
     try:
-        if telegram_api.ensure_webhook(f"{settings.public_url}{WEBHOOK_PATH}", secret):
-            logger.info("Telegram now delivers messages to %s%s", settings.public_url, WEBHOOK_PATH)
+        telegram_api.set_webhook(f"{settings.public_url}{WEBHOOK_PATH}", secret)
+        logger.info("Telegram delivers messages to %s%s", settings.public_url, WEBHOOK_PATH)
     except telegram_api.TelegramError as error:
         logger.warning("Telegram webhook not set: %s", error)
 
