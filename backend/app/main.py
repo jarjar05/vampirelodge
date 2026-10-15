@@ -11,6 +11,7 @@ from app.routes.calendar import router as calendar_router
 from app.routes.families import router as families_router
 from app.routes.health import router as health_router
 from app.routes.knowledge import router as knowledge_router
+from app.routes.my_schedule import router as my_schedule_router
 from app.routes.schedule import router as schedule_router
 from app.routes.tasks import router as tasks_router
 from app.routes.telegram import router as telegram_router
@@ -47,3 +48,4 @@ app.include_router(tasks_router)
 app.include_router(calendar_router)
 app.include_router(telegram_router)
 app.include_router(schedule_router)
+app.include_router(my_schedule_router)

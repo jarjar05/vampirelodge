@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import Task, User
-from app.services import calendar_feed, llm
+from app.services import busy_times, calendar_feed, llm
 from app.services.tasks import tasks_for_member
 
 MAX_TASKS = 20
@@ -123,12 +123,9 @@ def plan_my_day(database: Session, family_id: uuid.UUID, user_id: uuid.UUID, tim
     if not tasks:
         _cache.pop(user_id, None)
         return None
-    calendar_url = database.scalar(select(User.calendar_url).where(User.id == user_id))
-    busy = (
-        calendar_feed.describe(calendar_feed.busy_blocks(user_id, calendar_url, now, now + calendar_feed.LOOKAHEAD, zone), zone)
-        if calendar_url
-        else None
-    )
+    user = database.get(User, user_id)
+    blocks = busy_times.for_people(database, [user], now, now + calendar_feed.LOOKAHEAD, zone) if user else {}
+    busy = calendar_feed.describe(blocks[user_id], zone) if user_id in blocks else None
     prompt = build_prompt(tasks, busy, now, zone)
 
     fingerprint = _fingerprint(prompt, now, zone)

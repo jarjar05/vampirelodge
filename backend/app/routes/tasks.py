@@ -363,7 +363,9 @@ def complete_task(task_id: uuid.UUID, family_access: FamilyMemberContext, user: 
     task.completed_at = datetime.now(timezone.utc)
     record_activity(task, user.id, "Completed", "Marked this task complete")
     recurrence.schedule_after(database, task)
-    return _save(database, task)
+    response = _save(database, task)
+    telegram_bot.notify_completed(database, task, user)
+    return response
 
 
 @router.post("/tasks/{task_id}/stop-repeating", response_model=TaskResponse)

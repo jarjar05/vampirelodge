@@ -500,6 +500,19 @@ a:active {
 @keyframes tab-in-right { from { opacity: 0; translate: 32px 0; } }
 @keyframes tab-in-left { from { opacity: 0; translate: -32px 0; } }
 
+/* Calendar weeks slide like pages: the old week's days out one side, the new week's in from the other, all in the
+   same cells. Each cell is one seventh of the days, so 700% is the width of the whole week. --slide is 1 for a later
+   week and -1 for an earlier one. */
+.week-cell-in { animation: week-cell-in 0.6s var(--ease-out) both; }
+.week-cell-out { animation: week-cell-out 0.6s var(--ease-out) both; pointer-events: none; }
+@keyframes week-cell-in { from { translate: calc(var(--slide, 1) * 700%) 0; } }
+@keyframes week-cell-out { to { translate: calc(var(--slide, 1) * -700%) 0; } }
+/* The dates in the heading hand over: the old range leaves quickly, then the new one arrives, so they never blur. */
+.week-title-out { animation: week-title-out 0.22s ease-in both; }
+.week-title-in { animation: week-title-in 0.45s var(--ease-out) 0.16s both; }
+@keyframes week-title-out { to { translate: calc(var(--slide, 1) * -1rem) 0; opacity: 0; } }
+@keyframes week-title-in { from { translate: calc(var(--slide, 1) * 1rem) 0; opacity: 0; } }
+
 /* Dropdown menus open from their top-right corner. */
 .menu-pop {
   transform-origin: 100% 0;

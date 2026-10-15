@@ -140,6 +140,13 @@ def notify_updated(database: Session, task: Task, actor: User, what_changed: str
             _notify(database.get(User, user_id), [f"✏️ {actor.name.split()[0]} changed the {what_changed} of: {task.title}"], task)
 
 
+def notify_completed(database: Session, task: Task, actor: User) -> None:
+    """Tell the others on a shared task that someone finished it, so nobody goes to do it again."""
+    for user_id in task.assignee_ids:
+        if user_id != actor.id:
+            _notify(database.get(User, user_id), [f"✅ {actor.name.split()[0]} finished: {task.title}", "Nothing more to do on it."], task)
+
+
 # ── Overdue reminders ──────────────────────────────────────────────────────────
 
 def send_overdue_reminders(database: Session, now: datetime | None = None) -> int:
@@ -449,6 +456,7 @@ def _complete_from_reminder(database: Session, user: User, task_hex: str) -> tup
     record_activity(task, user.id, "Completed", "Marked this task complete from Telegram")
     recurrence.schedule_after(database, task)
     database.commit()
+    notify_completed(database, task, user)
     return "Marked complete.", f"✅ Completed: {task.title}"
 
 

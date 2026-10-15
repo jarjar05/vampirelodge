@@ -1,4 +1,4 @@
-"""Everyone's week at a glance: tasks due, and busy times from linked calendars."""
+"""Everyone's week at a glance: tasks due, and busy times from linked calendars and typed-in schedules."""
 
 from datetime import date, datetime, time, timedelta, timezone
 from typing import Annotated, Literal
@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies.family import FamilyMemberContext
 from app.models import FamilyMembership, Task, User
-from app.services import calendar_feed
+from app.services import busy_times, calendar_feed
 from app.services.day_plan import resolve_timezone
 
 router = APIRouter(prefix="/api/families/me", tags=["schedule"])
@@ -20,7 +20,8 @@ MAX_DAYS = 31
 
 
 class ScheduleItem(BaseModel):
-    # "busy" comes from a linked calendar and never carries a title: only the time is shared.
+    # "busy" from a linked calendar never carries a title: only the time is shared. One typed in by hand carries
+    # the label its owner chose to share, if any.
     kind: Literal["busy", "task"]
     start: datetime
     end: datetime | None = None
@@ -35,6 +36,8 @@ class MemberSchedule(BaseModel):
     linked_calendar: bool
     # Whether the calendar could be read just now; false with linked_calendar true means busy times may be missing.
     calendar_ok: bool
+    # Whether they have typed in a schedule of their own.
+    manual_schedule: bool = False
     items: list[ScheduleItem]
 
 
@@ -64,7 +67,8 @@ def read_schedule(
         .where(FamilyMembership.family_id == family_id).order_by(FamilyMembership.joined_at, User.name)
     ).all()
     users = [user for _membership, user in rows]
-    busy = calendar_feed.busy_for_people({user.id: user.calendar_url for user in users}, window_start, window_end, zone)
+    busy = busy_times.for_people(database, users, window_start, window_end, zone)
+    typed_in = busy_times.has_typed_in(database, [user.id for user in users])
 
     items: dict = {user.id: [] for user in users}
     for task in database.scalars(
@@ -77,14 +81,14 @@ def read_schedule(
                 items[assignee_id].append(ScheduleItem(kind="task", start=task.due_at, title=task.title, id=str(task.id)))
     for user_id, blocks in busy.items():
         for block in blocks:
-            items[user_id].append(ScheduleItem(kind="busy", start=block.start.astimezone(timezone.utc), end=block.end.astimezone(timezone.utc), all_day=block.all_day))
+            items[user_id].append(ScheduleItem(kind="busy", start=block.start.astimezone(timezone.utc), end=block.end.astimezone(timezone.utc), all_day=block.all_day, title=block.label))
 
     members = []
     for user in users:
         linked = bool(user.calendar_url)
         calendar_ok = not linked or calendar_feed.check(user.id, user.calendar_url).error is None
         members.append(MemberSchedule(
-            member_id=str(user.id), linked_calendar=linked, calendar_ok=calendar_ok,
+            member_id=str(user.id), linked_calendar=linked, calendar_ok=calendar_ok, manual_schedule=user.id in typed_in,
             items=sorted(items[user.id], key=lambda item: (not item.all_day, item.start)),
         ))
     return ScheduleResponse(start=first_day, days=days, members=members)

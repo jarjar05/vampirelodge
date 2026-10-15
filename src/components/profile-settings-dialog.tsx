@@ -4,6 +4,7 @@ import { api } from "@/api/client";
 import type { AuthUser } from "@/components/auth/login-page";
 import { CalendarLink } from "@/components/calendar-link";
 import { FamilyAvatar } from "@/components/family-avatar";
+import { MySchedule } from "@/components/my-schedule";
 import { PhoneInput } from "@/components/phone-input";
 import { TelegramLink } from "@/components/telegram-link";
 import { Button } from "@/components/ui/button";
@@ -197,6 +198,7 @@ export function ProfileSettingsDialog({
         </fieldset>
 
         <CalendarLink />
+        <MySchedule />
         <TelegramLink />
 
         {errorMessage && <p role="alert" className="mt-4 rounded-lg bg-alert/10 px-3 py-2 text-sm text-alert">{errorMessage}</p>}

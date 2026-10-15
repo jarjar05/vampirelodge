@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import FamilyMembership, Task, User
-from app.services import calendar_feed, knowledge, llm
+from app.services import busy_times, calendar_feed, knowledge, llm
 from app.services.chroma_service import ChromaServiceError
 from app.services.tasks import join_names
 
@@ -104,7 +104,7 @@ def _family_rows(database: Session, family_id: uuid.UUID) -> list[tuple[FamilyMe
 
 def _day_schedule(database: Session, task: Task, users: list[User], now: datetime, zone: tzinfo) -> _DaySchedule:
     start, end = _calendar_window(task, now, zone)
-    calendar = calendar_feed.busy_for_people({user.id: user.calendar_url for user in users}, start, end, zone)
+    calendar = busy_times.for_people(database, users, start, end, zone)
 
     busy_at_task_time: set[uuid.UUID] = set()
     if task.due_at and task.due_at > now:

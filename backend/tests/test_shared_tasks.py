@@ -115,3 +115,61 @@ def test_the_model_can_suggest_several_people(family, login, monkeypatch):
     assert body["member_ids"] == [clients["Chloe"].user_id, member.user_id]
     assert body["member_id"] == clients["Chloe"].user_id
     assert "homework" in requests[0]["system"].lower() and "more than one" in requests[0]["system"]
+
+
+def test_anyone_on_a_shared_task_can_finish_it_for_everyone(family, monkeypatch):
+    import uuid
+
+    from app.database import SessionLocal
+    from app.models import User
+    from app.services import telegram_api, telegram_bot
+
+    admin, member = family
+    sent = []
+    monkeypatch.setattr(telegram_api, "is_configured", lambda: True)
+    monkeypatch.setattr(telegram_api, "send_message", lambda chat_id, text, buttons=None, reply_to=None: sent.append((chat_id, text, buttons)) or {"message_id": 1})
+    with SessionLocal() as database:
+        for client, chat in ((admin, 1001), (member, 1002)):
+            database.get(User, uuid.UUID(client.user_id)).telegram_id = chat
+        database.commit()
+
+    task = _task(admin, title="Fold the laundry", assignee_ids=[admin.user_id, member.user_id])
+    sent.clear()
+    # Ben, the second person on it, ticks it off in the app.
+    assert member.post(f"/api/families/me/tasks/{task['id']}/complete").json()["status"] == "Completed"
+
+    # Alice sees it done too, and is told who finished it; Ben, who did it, is not messaged.
+    seen = {item["id"]: item for item in admin.get("/api/families/me/tasks").json()}[task["id"]]
+    assert seen["status"] == "Completed" and seen["activity"][-1]["action"] == "Completed"
+    assert [(chat, text.splitlines()[0]) for chat, text, _ in sent] == [(1001, "✅ Ben finished: Fold the laundry")]
+    assert sent[0][2] is None  # no Done button on a finished task
+
+    # A Done button Alice still has from an earlier reminder just says it is already done.
+    with SessionLocal() as database:
+        alice = database.get(User, uuid.UUID(admin.user_id))
+        notice, text = telegram_bot._complete_from_reminder(database, alice, uuid.UUID(task["id"]).hex)
+    assert notice == "Already completed." and text == "✅ Completed: Fold the laundry"
+
+
+def test_finishing_from_telegram_tells_the_others(family, monkeypatch):
+    import uuid
+
+    from app.database import SessionLocal
+    from app.models import User
+    from app.services import telegram_api, telegram_bot
+
+    admin, member = family
+    sent = []
+    monkeypatch.setattr(telegram_api, "is_configured", lambda: True)
+    monkeypatch.setattr(telegram_api, "send_message", lambda chat_id, text, buttons=None, reply_to=None: sent.append((chat_id, text)) or {"message_id": 1})
+    with SessionLocal() as database:
+        database.get(User, uuid.UUID(admin.user_id)).telegram_id = 1001
+        database.commit()
+    task = _task(admin, title="Water the plants", assignee_ids=[admin.user_id, member.user_id])
+    sent.clear()
+    with SessionLocal() as database:
+        ben = database.get(User, uuid.UUID(member.user_id))
+        notice, _text = telegram_bot._complete_from_reminder(database, ben, uuid.UUID(task["id"]).hex)
+    assert notice == "Marked complete."
+    assert admin.get("/api/families/me/tasks").json()[0]["status"] == "Completed"
+    assert sent and sent[0][0] == 1001 and sent[0][1].startswith("✅ Ben finished: Water the plants")

@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { isAssignedTo, type CareTask } from "@/types/care";
+import { isAssignedTo, lastCompletion, type CareTask } from "@/types/care";
 
 export type CareNotification = {
   id: string;
@@ -51,6 +51,19 @@ export function buildNotifications(
         ? `${firstName} ${latest.detail.charAt(0).toLowerCase()}${latest.detail.slice(1)}`
         : `${firstName} gave you this · due ${task.time}`,
       to: "/tasks?filter=My%20Tasks",
+      tone: "info",
+    });
+  }
+
+  // A task I share that someone else finished, so I know not to do it.
+  for (const task of tasks.filter((item) => item.complete && isAssignedTo(item, currentUserId))) {
+    const done = lastCompletion(task);
+    if (!done || done.actorId === currentUserId || now.getTime() - new Date(done.at).getTime() > recentMs) continue;
+    notifications.push({
+      id: `event-${done.id}`,
+      title: task.title,
+      detail: `${done.actor.split(/\s+/)[0]} finished this · nothing more to do`,
+      to: "/tasks?filter=Completed",
       tone: "info",
     });
   }

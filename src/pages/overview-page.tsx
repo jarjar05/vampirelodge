@@ -65,7 +65,7 @@ export function OverviewPage({ care, currentUser, onUserUpdated }: { care: CareD
         </div>
       </OverviewCard>
     ),
-    schedule: <TodayScheduleCard care={care} />,
+    schedule: <TodayScheduleCard care={care} currentUserId={currentUser.id} />,
     family: (
       <OverviewCard title="The family" to="/circle" linkLabel="View family">
         <p className="-mt-1 text-sm text-muted-foreground">The ring fills with each person’s open tasks</p>
@@ -155,7 +155,7 @@ export function OverviewPage({ care, currentUser, onUserUpdated }: { care: CareD
 }
 
 /** Today for everyone in the family, from the same schedule as the Calendar page. */
-function TodayScheduleCard({ care }: { care: CareData }) {
+function TodayScheduleCard({ care, currentUserId }: { care: CareData; currentUserId: string }) {
   const today = getLocalDateInputValue();
   const [openTaskId, setOpenTaskId] = useState<string | null>(null);
   const { schedule, errorMessage } = useFamilySchedule(today, 1, care.tasks);
@@ -165,7 +165,7 @@ function TodayScheduleCard({ care }: { care: CareData }) {
         {errorMessage
           ? <EmptyNote>{errorMessage}</EmptyNote>
           : schedule
-            ? <DayTimeline members={care.members} schedules={schedule.members} onOpenTask={setOpenTaskId} />
+            ? <DayTimeline members={care.members} schedules={schedule.members} currentUserId={currentUserId} onOpenTask={setOpenTaskId} />
             : <p role="status" className="py-4 text-sm text-muted-foreground">Loading today…</p>}
       </OverviewCard>
       {openTaskId && <TaskDetails care={care} taskId={openTaskId} onClose={() => setOpenTaskId(null)} />}

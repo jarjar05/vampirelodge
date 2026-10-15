@@ -169,8 +169,22 @@ export type MemberSchedule = {
   linkedCalendar: boolean;
   /** False when a linked calendar could not be read, so busy times may be missing. */
   calendarOk: boolean;
+  /** Whether they have typed in a schedule of their own. */
+  manualSchedule: boolean;
   items: ScheduleItem[];
 };
+
+/** A time someone typed in as busy: every week on `weekdays` (Monday is 0), or once on `onDate`. Times are HH:MM. */
+export type MyScheduleEntry = {
+  id: string;
+  label: string | null;
+  weekdays: number[];
+  onDate: string | null;
+  startTime: string;
+  endTime: string;
+};
+
+export type NewScheduleEntry = Omit<MyScheduleEntry, "id">;
 
 export type FamilySchedule = {
   /** First day shown, YYYY-MM-DD. */
@@ -211,4 +225,9 @@ export type FamilyActivityItem = {
 /** Whether this person is on the task, alone or sharing it. */
 export function isAssignedTo(task: Pick<CareTask, "assigneeIds">, memberId: string) {
   return task.assigneeIds.includes(memberId);
+}
+
+/** The last time the task was ticked off, and by whom, or undefined if it has not been. */
+export function lastCompletion(task: Pick<CareTask, "activity">) {
+  return [...task.activity].reverse().find((item) => item.action === "Completed");
 }

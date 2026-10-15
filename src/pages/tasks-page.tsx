@@ -29,6 +29,7 @@ import { getLocalDateInputValue, localInputsToIso } from "@/lib/dates";
 import { mockTaskRiskAssessment, taskRiskTagStyles, type TaskRiskAssessment } from "@/lib/task-risk";
 import {
   isAssignedTo,
+  lastCompletion,
   recurrenceOptions,
   recurrencePhrases,
   type CareTask,
@@ -653,6 +654,7 @@ function TaskDetailDialog({
 
   const assignees = task.assigneeIds.map((id) => members.find((member) => member.id === id)).filter((member): member is FamilyMember => Boolean(member));
   const assignedMember = assignees[0];
+  const completion = task.complete ? lastCompletion(task) : undefined;
   const isOverdue = !task.complete && task.attention === "Overdue";
 
   return (
@@ -685,7 +687,7 @@ function TaskDetailDialog({
               : <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-full border border-dashed border-input text-sm text-muted-foreground">?</span>}
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold">{assignees.length > 1 ? joinFirstNames(assignees) : assignedMember?.name ?? "Unassigned"}</p>
-            <p className="text-xs text-muted-foreground">{task.complete ? "Completed" : assignees.length > 1 ? "Shared task" : assignedMember ? assignedMember.role : "Needs someone to take it"}</p>
+            <p className="text-xs text-muted-foreground">{task.complete ? (completion ? `Done by ${completion.actor.split(/\s+/)[0]}` : "Completed") : assignees.length > 1 ? "Shared task" : assignedMember ? assignedMember.role : "Needs someone to take it"}</p>
           </div>
           <PriorityBadge priority={task.priority} />
         </div>

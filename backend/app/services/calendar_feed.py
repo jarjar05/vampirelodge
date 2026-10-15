@@ -44,6 +44,8 @@ class BusyBlock:
     start: datetime
     end: datetime
     all_day: bool
+    # What it is, only for times people typed in themselves to share; a linked calendar's events stay private.
+    label: str | None = None
 
 
 @dataclass(frozen=True)
@@ -226,4 +228,6 @@ def describe(blocks: list[BusyBlock], zone: tzinfo) -> list[str]:
             lines.append(f"{start:%A %d %B, %H:%M} to {end:%H:%M}")
         else:
             lines.append(f"{start:%A %d %B, %H:%M} to {end:%A %d %B, %H:%M}")
+        if block.label:
+            lines[-1] += f" ({block.label})"
     return lines

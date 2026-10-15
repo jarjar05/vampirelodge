@@ -13,7 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import FamilyMembership, Task, User
-from app.services import calendar_feed, knowledge, llm
+from app.services import busy_times, calendar_feed, knowledge, llm
 from app.services.chroma_service import ChromaServiceError
 
 MAX_OPEN_TASKS = 60
@@ -31,8 +31,8 @@ concise chat assistant.
 
 You are given, as of the current time: the family members, their role in the family, availability and open \
 tasks; every open task with its due time, place, priority and who has it; tasks finished recently; the busy \
-times on the calendars members have linked for the next seven days (only that they are busy, never what the \
-event is, so never guess at it); and the family notes that best match the question.
+times for the next seven days from the calendars members have linked (only that they are busy, never what the \
+event is, so never guess at it) or from schedules they typed in (which may say what it is, in brackets); and the family notes that best match the question.
 
 Rules:
 - Answer only from what you are given. If the answer is not there, say so plainly and, where it helps, say \
@@ -91,7 +91,7 @@ def build_prompt(database: Session, family_id: uuid.UUID, asker: User, question:
         .order_by(Task.completed_at.desc())
         .limit(MAX_RECENT_DONE)
     ).all()
-    calendar = calendar_feed.busy_for_people({user.id: user.calendar_url for _membership, user in rows}, now, now + CALENDAR_WINDOW, zone)
+    calendar = busy_times.for_people(database, [user for _membership, user in rows], now, now + CALENDAR_WINDOW, zone)
 
     members = [
         {
@@ -101,7 +101,7 @@ def build_prompt(database: Session, family_id: uuid.UUID, asker: User, question:
             "family_admin": membership.role == "ADMIN",
             "availability": membership.availability,
             "availability_note": membership.availability_note,
-            **({"calendar_busy_next_7_days": calendar_feed.describe(calendar[user.id], zone)} if user.id in calendar else {"calendar_linked": False}),
+            **({"calendar_busy_next_7_days": calendar_feed.describe(calendar[user.id], zone)} if user.id in calendar else {"calendar_or_schedule_shared": False}),
         }
         for membership, user in rows
     ]

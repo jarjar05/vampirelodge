@@ -95,9 +95,9 @@ test("the calendar shows each member's tasks for the week", async ({ page }) => 
   await page.getByRole("navigation", { name: "Main navigation" }).first().getByRole("link", { name: "Calendar" }).click();
   await expect(page.getByRole("heading", { name: "Calendar", level: 1 })).toBeVisible();
   const grid = page.getByRole("table");
-  await expect(grid.getByRole("rowheader", { name: /Annie/ })).toBeVisible();
+  await expect(grid.getByRole("rowheader", { name: /^You/ })).toBeVisible();
   await expect(grid.getByText("Water the plants")).toBeVisible();
-  await expect(grid.getByText("No calendar linked")).toBeVisible();
+  await expect(grid.getByText("No schedule shared")).toBeVisible();
 
   // Moving a week on and back again.
   const heading = page.locator("main h2").first();
@@ -174,4 +174,26 @@ test("sharing a task between two people, and giving someone a task from the Fami
   // It now counts as Annie's too.
   await page.getByRole("tab", { name: /^My Tasks/ }).click();
   await expect(page.locator("#tasks-panel article", { hasText: "Fetch the groceries" })).toBeVisible();
+});
+
+test("typing in a schedule by hand shows it on the family calendar", async ({ page }) => {
+  await signUp(page);
+  await page.getByRole("navigation", { name: "Main navigation" }).first().getByRole("link", { name: "Calendar" }).click();
+  const grid = page.getByRole("table");
+  await expect(grid.getByText("No schedule shared")).toBeVisible();
+
+  await page.getByRole("button", { name: "My schedule" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("button", { name: "Add a busy time" }).click();
+  await dialog.getByLabel("Label").fill("Work");
+  // Weekdays are chosen to begin with; Saturday is added too.
+  await dialog.getByRole("button", { name: "Sat", exact: true }).click();
+  await dialog.getByRole("button", { name: "Add to my schedule" }).click();
+  await expect(dialog.getByText("Mon–Sat · 9:00 AM – 5:00 PM · every week")).toBeVisible();
+  await dialog.getByRole("button", { name: "Close" }).click();
+
+  // Six days of the week now show the labelled time, and the person is shown as having their own schedule.
+  await expect(grid.getByText("Own schedule")).toBeVisible();
+  await expect(grid.getByText("Work", { exact: true })).toHaveCount(6);
+  await expect(grid.getByText("Free")).toHaveCount(1);
 });

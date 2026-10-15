@@ -15,6 +15,8 @@ import type {
   FamilyMember,
   KnowledgeDocument,
   KnowledgeSearchResult,
+  MyScheduleEntry,
+  NewScheduleEntry,
   TaskActivity,
   TaskActivityAction,
   TelegramStatus,
@@ -100,6 +102,16 @@ function toCalendarStatus(status: ApiCalendarStatus): CalendarStatus {
 }
 
 /** The browser's time zone name, e.g. "Asia/Singapore", so the AI is given times as the person sees them. */
+type ApiScheduleEntry = { id: string; label: string | null; weekdays: number[]; on_date: string | null; start_time: string; end_time: string };
+
+function toScheduleEntry(entry: ApiScheduleEntry): MyScheduleEntry {
+  return { id: entry.id, label: entry.label, weekdays: entry.weekdays, onDate: entry.on_date, startTime: entry.start_time.slice(0, 5), endTime: entry.end_time.slice(0, 5) };
+}
+
+function fromScheduleEntry(entry: NewScheduleEntry) {
+  return { label: entry.label, weekdays: entry.weekdays, on_date: entry.onDate, start_time: entry.startTime, end_time: entry.endTime, timezone: localTimeZone() };
+}
+
 function localTimeZone() {
   return Intl.DateTimeFormat().resolvedOptions().timeZone;
 }
@@ -216,9 +228,16 @@ export const careApi = {
     (await api<ApiKnowledgeSearchResult[]>(`/families/me/knowledge/search?limit=5&query=${encodeURIComponent(query)}`))
       .map((result) => ({ id: result.id, documentId: result.document_id, title: result.title, content: result.content })),
 
+  mySchedule: async () => (await api<ApiScheduleEntry[]>("/me/schedule")).map(toScheduleEntry),
+  addScheduleEntry: async (entry: NewScheduleEntry) =>
+    toScheduleEntry(await api<ApiScheduleEntry>("/me/schedule", { method: "POST", body: fromScheduleEntry(entry) })),
+  updateScheduleEntry: async (entryId: string, entry: NewScheduleEntry) =>
+    toScheduleEntry(await api<ApiScheduleEntry>(`/me/schedule/${entryId}`, { method: "PUT", body: fromScheduleEntry(entry) })),
+  deleteScheduleEntry: (entryId: string) => api(`/me/schedule/${entryId}`, { method: "DELETE" }),
+
   getSchedule: async (start: string, days: number): Promise<FamilySchedule> => {
     type ApiItem = { kind: "busy" | "task"; start: string; end: string | null; all_day: boolean; title: string | null; id: string | null };
-    const schedule = await api<{ start: string; days: number; members: { member_id: string; linked_calendar: boolean; calendar_ok: boolean; items: ApiItem[] }[] }>(
+    const schedule = await api<{ start: string; days: number; members: { member_id: string; linked_calendar: boolean; calendar_ok: boolean; manual_schedule: boolean; items: ApiItem[] }[] }>(
       `/families/me/schedule?start=${start}&days=${days}&timezone=${encodeURIComponent(localTimeZone())}`,
     );
     return {
@@ -228,6 +247,7 @@ export const careApi = {
         memberId: member.member_id,
         linkedCalendar: member.linked_calendar,
         calendarOk: member.calendar_ok,
+        manualSchedule: member.manual_schedule,
         items: member.items.map((item) => ({ kind: item.kind, start: item.start, end: item.end, allDay: item.all_day, title: item.title, id: item.id })),
       })),
     };

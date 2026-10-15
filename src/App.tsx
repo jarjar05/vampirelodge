@@ -169,7 +169,7 @@ function CareApp({ currentUser, onUserUpdated, onSignOut }: { currentUser: AuthU
         <Routes>
           <Route path="/" element={overview} />
           <Route path="/tasks" element={<CarePlanPage care={care} currentUser={currentUser} />} />
-          <Route path="/calendar" element={<CalendarPage care={care} />} />
+          <Route path="/calendar" element={<CalendarPage care={care} currentUser={currentUser} />} />
           <Route path="/circle" element={<CareCirclePage care={care} family={family} currentUser={currentUser} />} />
           <Route path="/knowledge" element={<KnowledgePage />} />
           <Route path="/activity" element={<ActivityPage care={care} />} />
