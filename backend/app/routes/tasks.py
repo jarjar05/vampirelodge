@@ -13,6 +13,8 @@ from app.dependencies.auth import AuthenticatedUser
 from app.dependencies.family import FamilyMemberContext
 from app.models import Task, TaskActivity
 from app.schemas.task import (
+    AskRequest,
+    AskResponse,
     AssignmentSuggestionResponse,
     DayPlanRequest,
     DayPlanResponse,
@@ -30,7 +32,7 @@ from app.schemas.task import (
     TaskResponse,
     TaskUpdateRequest,
 )
-from app.services import assignment, day_plan, document_tasks, recurrence, telegram_bot
+from app.services import assignment, day_plan, document_tasks, family_assistant, recurrence, telegram_bot
 from app.services.llm import LLMUnavailable
 from app.services.tasks import get_family_member, record_activity
 
@@ -328,6 +330,17 @@ def plan_my_day(payload: DayPlanRequest, family_access: FamilyMemberContext, use
         steps=[DayPlanStepResponse(task_id=step.task_id, note=step.note) for step in plan.steps],
         generated_at=plan.generated_at,
     )
+
+
+@router.post("/ask", response_model=AskResponse)
+def ask_assistant(payload: AskRequest, family_access: FamilyMemberContext, user: AuthenticatedUser, database: DatabaseSession) -> AskResponse:
+    """Answer a question about the family's tasks, people, calendars and notes. Reads only; changes nothing."""
+    history = [family_assistant.Turn(role=turn.role, text=turn.text) for turn in payload.history]
+    try:
+        answer = family_assistant.ask(database, family_access.family.id, user, payload.question.strip(), history, day_plan.resolve_timezone(payload.timezone))
+    except LLMUnavailable as error:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(error)) from error
+    return AskResponse(answer=answer.text, task_ids=answer.task_ids, note_titles=answer.note_titles)
 
 
 @router.post("/tasks/{task_id}/complete", response_model=TaskResponse)

@@ -9,18 +9,21 @@ import {
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { type AuthUser } from "@/components/auth/login-page";
-import { FamilyAvatar } from "@/components/family-avatar";
+import { toneColours } from "@/components/family-avatar";
 import { DayPlanCard } from "@/components/day-plan-card";
 import { CountUp } from "@/components/count-up";
 import { SortableList } from "@/components/sortable-list";
-import { TodayList } from "@/components/family-schedule";
+import { DayTimeline } from "@/components/family-schedule";
+import { BannerContent } from "@/components/scene-banner";
+import { TaskDetails } from "@/pages/tasks-page";
+import { MemberDetails } from "@/components/member-details";
 import { useFamilySchedule } from "@/hooks/use-family-schedule";
 import { api } from "@/api/client";
 import { areaOf, defaultOverviewLayout, overviewCards, resolveOverviewLayout, type OverviewArea, type OverviewCardId } from "@/lib/overview-layout";
 import { type CareData } from "@/hooks/use-care-data";
 import { useReveal } from "@/hooks/use-reveal";
 import { formatLongDate, getLocalDateInputValue, partOfDay } from "@/lib/dates";
-import { ActivityCard, countActiveTasks, EmptyNote, FamilyWorkloadBar, OverviewCard, PageHeading } from "@/components/page-parts";
+import { ActivityCard, countActiveTasks, EmptyNote, OverviewCard } from "@/components/page-parts";
 
 export function OverviewPage({ care, currentUser, onUserUpdated }: { care: CareData; currentUser: AuthUser; onUserUpdated: (user: AuthUser) => void }) {
   const { tasks, members } = care;
@@ -36,57 +39,93 @@ export function OverviewPage({ care, currentUser, onUserUpdated }: { care: CareD
   const firstName = currentUser.name.trim().split(/\s+/)[0];
   const layout = resolveOverviewLayout(currentUser.overview_layout);
   const [isCustomising, setIsCustomising] = useState(false);
+  const [memberId, setMemberId] = useState<string | null>(null);
+
+  const myDueToday = myTasks.filter((task) => task.dueAt && new Date(task.dueAt).getTime() < endOfToday);
+  const myOverdue = myTasks.filter((task) => task.attention === "Overdue");
 
   const cards: Record<OverviewCardId, React.ReactNode> = {
     summary: (
-      <section className="grid grid-cols-2 gap-3 xl:grid-cols-4" aria-label="Care summary">
-        <SummaryTile order={0} to="/tasks" icon={ClipboardList} label="Active tasks" value={activeTasks.length} tone="bg-primary text-primary-foreground shadow-primary/30" />
-        <SummaryTile order={1} to="/calendar" icon={CalendarDays} label="Due today" value={dueTodayTasks.length} tone="bg-amber-400 text-amber-950 shadow-amber-400/40" />
-        <SummaryTile order={2} to="/tasks?filter=Unassigned" icon={UserRound} label="Unassigned" value={unassignedTasks.length} tone="bg-sky-600 text-white shadow-sky-600/30" />
-        <SummaryTile order={3} to="/tasks?filter=Needs%20attention" icon={AlertTriangle} label="Needs attention" value={attentionTasks.length} tone="bg-alert text-white shadow-alert/30" />
+      <section className="grid grid-cols-2 gap-3.5 xl:grid-cols-4" aria-label="Care summary">
+        <SummaryTile order={0} to="/tasks" icon={ClipboardList} label="Active tasks" value={activeTasks.length} colour="var(--sage)" />
+        <SummaryTile order={1} to="/calendar" icon={CalendarDays} label="Due today" value={dueTodayTasks.length} colour="var(--mustard)" />
+        <SummaryTile order={2} to="/tasks?filter=Unassigned" icon={UserRound} label="Unassigned" value={unassignedTasks.length} colour="var(--sky)" />
+        <SummaryTile order={3} to="/tasks?filter=Needs%20attention" icon={AlertTriangle} label="Needs attention" value={attentionTasks.length} colour="var(--alert)" />
       </section>
     ),
     // The plan lists my tasks in its suggested order, so a separate list is only needed when I have none.
     plan: myTasks.length > 0 ? <DayPlanCard tasks={myTasks} /> : (
-      <OverviewCard title="My tasks" to="/tasks" linkLabel="All tasks">
+      <OverviewCard title="Your order for today" to="/tasks" linkLabel="All tasks">
         <EmptyNote>Nothing is assigned to you.</EmptyNote>
       </OverviewCard>
     ),
     schedule: <TodayScheduleCard care={care} />,
     family: (
-      <OverviewCard title="Family" to="/circle" linkLabel="View family" iconOnlyLink>
-        <div className="stagger space-y-4 pt-1">
-          {members.map((member) => (
-            <div key={member.id} className="flex items-center gap-3">
-              <FamilyAvatar initials={member.initials} tone={member.tone} imageUrl={member.avatarUrl} />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold">{member.firstName}</p>
-                <FamilyWorkloadBar name={member.name} activeTasks={countActiveTasks(tasks, member.id)} maxTasks={maxWorkload} />
-              </div>
-            </div>
-          ))}
-        </div>
+      <OverviewCard title="The family" to="/circle" linkLabel="View family">
+        <p className="-mt-1 text-sm text-muted-foreground">The ring fills with each person’s open tasks</p>
+        <ul className="stagger mt-4 grid grid-cols-3 gap-x-3 gap-y-5">
+          {members.map((member) => {
+            const open = countActiveTasks(tasks, member.id);
+            return (
+              <li key={member.id} className="min-w-0">
+                <button
+                  type="button"
+                  onClick={() => setMemberId(member.id)}
+                  aria-haspopup="dialog"
+                  aria-label={`${member.name}: ${open} open ${open === 1 ? "task" : "tasks"}, ${member.availability}. Show their tasks and workload`}
+                  className="family-face w-full min-w-0 rounded-2xl py-1 text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  style={{ "--person": toneColours[member.tone], "--load": Math.round((open / maxWorkload) * 100) } as React.CSSProperties}
+                >
+                <span aria-hidden="true" className="load-ring mx-auto grid size-16 place-items-center rounded-full">
+                  {member.avatarUrl
+                    ? <img src={member.avatarUrl} alt="" className="size-[52px] rounded-full object-cover" />
+                    : <span className="grid size-[52px] place-items-center rounded-full text-[15px] font-extrabold">{member.initials}</span>}
+                </span>
+                <span aria-hidden="true" className="mt-2 block truncate font-extrabold">{member.firstName}</span>
+                <span aria-hidden="true" className={`block truncate text-[12.5px] ${member.availability === "Away today" ? "text-alert" : "text-muted-foreground"}`}>{open} open · {member.availability}</span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
       </OverviewCard>
     ),
     activity: <ActivityCard activity={care.activity.slice(0, 4)} members={members} to="/activity" />,
   };
   const inArea = (area: OverviewArea) => layout.filter((id) => areaOf(id) === area);
   const [top, main, side] = [inArea("top"), inArea("main"), inArea("side")];
+  const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
+  // One plain sentence about the day, worked out from the task list.
+  const lead = [
+    myOverdue.length > 0
+      ? `${plural(myDueToday.length, "thing needs", "things need")} you today, and ${myOverdue.length === 1 ? "one is" : `${myOverdue.length} are`} overdue.`
+      : myDueToday.length > 0
+        ? `${plural(myDueToday.length, "thing needs", "things need")} you today.`
+        : myTasks.length > 0
+          ? `Nothing is due from you today. You have ${plural(myTasks.length, "task", "tasks")} coming up.`
+          : "Nothing is on your list today.",
+    unassignedTasks.length > 0 ? `${plural(unassignedTasks.length, "task still needs", "tasks still need")} someone.` : "",
+  ].filter(Boolean).join(" ");
 
   return (
     <>
-      <div className="flex items-start justify-between gap-4">
-        <PageHeading showDetails eyebrow={formatLongDate(now)} title={`Good ${partOfDay(now)}, ${firstName}`} />
-        <Button size="sm" variant="outline" className="mt-1 shrink-0" onClick={() => setIsCustomising(true)}><SlidersHorizontal size={14} aria-hidden="true" />Customise</Button>
-      </div>
+      <BannerContent label="Today" className="px-6 pt-7 pb-[150px] sm:px-9 sm:pt-9 sm:pb-[136px]">
+        <p className="text-[13px] font-extrabold uppercase tracking-[0.05em] text-muted-foreground">{formatLongDate(now)}</p>
+        <h1 className="mt-2 pr-14 font-display text-[clamp(34px,5vw,56px)] font-bold leading-[1.05] sm:pr-0">Good {partOfDay(now)}, <em>{firstName}</em></h1>
+        <p className="mt-3 max-w-[44ch] text-[17px] sm:text-lg">{lead}</p>
+        <button type="button" onClick={() => setIsCustomising(true)} className="hero-chip absolute right-5 bottom-5 inline-flex items-center gap-2 rounded-full border border-card/70 px-4 py-2 text-sm font-extrabold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          <SlidersHorizontal size={14} aria-hidden="true" />Customise
+        </button>
+      </BannerContent>
       {top.map((id) => <div key={id} className="mb-6">{cards[id]}</div>)}
       {(main.length > 0 || side.length > 0) && (
-        <div className={`grid items-start gap-6 ${main.length > 0 && side.length > 0 ? "xl:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.75fr)]" : ""}`}>
+        <div className={`grid items-start gap-6 ${main.length > 0 && side.length > 0 ? "lg:grid-cols-[minmax(0,1.3fr)_minmax(0,0.8fr)]" : ""}`}>
           {main.length > 0 && <div className="space-y-6">{main.map((id) => <div key={id}>{cards[id]}</div>)}</div>}
           {side.length > 0 && <div className="space-y-6">{side.map((id) => <div key={id}>{cards[id]}</div>)}</div>}
         </div>
       )}
       {layout.length === 0 && <EmptyNote>Nothing is shown here. Choose Customise to add cards.</EmptyNote>}
+      {memberId && <MemberDetails care={care} memberId={memberId} onClose={() => setMemberId(null)} />}
       {isCustomising && (
         <OverviewCustomiser
           layout={layout}
@@ -104,15 +143,19 @@ export function OverviewPage({ care, currentUser, onUserUpdated }: { care: CareD
 /** Today for everyone in the family, from the same schedule as the Calendar page. */
 function TodayScheduleCard({ care }: { care: CareData }) {
   const today = getLocalDateInputValue();
+  const [openTaskId, setOpenTaskId] = useState<string | null>(null);
   const { schedule, errorMessage } = useFamilySchedule(today, 1, care.tasks);
   return (
-    <OverviewCard title="Today" to="/calendar" linkLabel="Calendar">
-      {errorMessage
-        ? <EmptyNote>{errorMessage}</EmptyNote>
-        : schedule
-          ? <TodayList members={care.members} schedules={schedule.members} />
-          : <p role="status" className="py-4 text-sm text-muted-foreground">Loading today…</p>}
-    </OverviewCard>
+    <>
+      <OverviewCard title="Today" to="/calendar" linkLabel="Calendar">
+        {errorMessage
+          ? <EmptyNote>{errorMessage}</EmptyNote>
+          : schedule
+            ? <DayTimeline members={care.members} schedules={schedule.members} onOpenTask={setOpenTaskId} />
+            : <p role="status" className="py-4 text-sm text-muted-foreground">Loading today…</p>}
+      </OverviewCard>
+      {openTaskId && <TaskDetails care={care} taskId={openTaskId} onClose={() => setOpenTaskId(null)} />}
+    </>
   );
 }
 
@@ -209,7 +252,7 @@ function OverviewCustomiser({ layout, onSave, onClose }: { layout: readonly Over
   );
 }
 
-function SummaryTile({ to, icon: Icon, label, value, tone, order }: { to: string; icon: typeof CalendarDays; label: string; value: number; tone: string; order: number }) {
+function SummaryTile({ to, icon: Icon, label, value, colour, order }: { to: string; icon: typeof CalendarDays; label: string; value: number; colour: string; order: number }) {
   // The wrapper does the scroll reveal so the link keeps its own hover and press transitions.
   const ref = useReveal<HTMLDivElement>();
   return (
@@ -217,14 +260,15 @@ function SummaryTile({ to, icon: Icon, label, value, tone, order }: { to: string
     <div ref={ref} className="reveal" style={{ "--reveal-delay": `${order * 70}ms` } as React.CSSProperties}>
       <Link
         to={to}
-        className="card-lift flex h-full items-center gap-4 rounded-2xl border border-border/60 bg-white/90 p-4 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:p-5"
+        style={{ "--tile": colour } as React.CSSProperties}
+        className="summary-tile flex h-full items-center gap-3.5 rounded-[22px] border border-border bg-card p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-[18px]"
       >
-        <span className={`flex size-11 shrink-0 items-center justify-center rounded-xl shadow-md ${tone}`}>
+        <span className="tile-icon flex size-11 shrink-0 items-center justify-center rounded-[14px]">
           <Icon size={20} aria-hidden="true" />
         </span>
         <div className="min-w-0">
-          <p className="font-display text-3xl font-semibold leading-none"><CountUp value={value} /></p>
-          <p className="mt-1.5 truncate text-xs font-medium text-muted-foreground">{label}</p>
+          <p className="font-display text-[30px] font-bold leading-none tabular-nums"><CountUp value={value} /></p>
+          <p className="mt-1 truncate text-[13px] font-bold text-muted-foreground">{label}</p>
         </div>
       </Link>
     </div>

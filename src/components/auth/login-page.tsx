@@ -1,5 +1,5 @@
 import { useRef, useState, type FormEvent, type InputHTMLAttributes } from "react";
-import { HeartPulse, KeyRound, LockKeyhole, Mail, UserRound, type LucideIcon } from "lucide-react";
+import { KeyRound, LockKeyhole, Mail, UserRound, type LucideIcon } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { api, ApiError } from "@/api/client";
 import { PhoneInput } from "@/components/phone-input";
@@ -134,26 +134,39 @@ export function LoginPage({ familyName, onAuthenticated }: LoginPageProps) {
   };
 
   return (
-    <main className="app-backdrop relative grid min-h-screen place-items-center overflow-hidden px-5 py-10 text-foreground">
-      <div aria-hidden="true" className="login-blob one" />
-      <div aria-hidden="true" className="login-blob two" />
-      <div aria-hidden="true" className="login-blob three" />
-      <div className={`relative w-full max-w-md ${isLeaving ? "login-leaving" : ""}`}>
-        <div className="mb-7 flex flex-col items-center text-center">
-          <span className="enter-rise flex size-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-md shadow-primary/20">
-            <HeartPulse size={24} aria-hidden="true" />
-          </span>
-          <p className="enter-rise mt-4 text-sm font-semibold text-primary" style={{ "--i": 1 } as React.CSSProperties}>{familyName}</p>
-          <h1 className="enter-rise mt-1 font-display text-3xl font-semibold" style={{ "--i": 2 } as React.CSSProperties}>{isCreating ? "Create your account" : isRecovering ? "Reset your password" : "Welcome back"}</h1>
-          <p className="enter-rise mt-2 text-sm text-muted-foreground" style={{ "--i": 3 } as React.CSSProperties}>{isCreating ? "Then set up a family space or join one with an invite code." : isRecovering ? "A code is sent to your linked Telegram." : "Sign in to coordinate your family’s care."}</p>
+    <main className={`app-backdrop grid min-h-screen text-foreground lg:grid-cols-[1.1fr_1fr] ${isLeaving ? "login-leaving" : ""}`}>
+      {/* A large version of the sky at the top of each page, as a welcome. */}
+      <section aria-hidden="true" className="welcome-scene relative flex min-h-[260px] flex-col justify-center overflow-hidden px-8 py-10 lg:min-h-screen lg:px-12">
+        <span className="welcome-sun" />
+        <svg className="absolute inset-x-0 bottom-0 h-[42%] w-full" viewBox="0 0 800 300" preserveAspectRatio="none">
+          <path d="M0,150 C140,80 260,90 400,140 C540,190 660,90 800,120 L800,300 L0,300 Z" fill="var(--hill-1)" />
+          <path d="M0,220 C170,170 330,190 480,206 C630,222 720,180 800,190 L800,300 L0,300 Z" fill="var(--hill-2)" />
+          <g transform="translate(560,90)">
+            <rect x="0" y="40" width="96" height="66" rx="5" fill="var(--card)" />
+            <path d="M-12,46 L48,2 L108,46 Z" fill="var(--primary)" />
+            <rect x="38" y="66" width="20" height="40" rx="3" fill="var(--mustard)" />
+            <rect x="12" y="58" width="16" height="16" rx="2" fill="var(--sky)" />
+          </g>
+        </svg>
+        <div className="enter-rise relative max-w-[420px]">
+          <p className="font-display text-[clamp(32px,4.4vw,56px)] font-bold leading-[1.04]">Looking after <em className="font-medium text-primary">family</em>, together.</p>
+          <p className="mt-3.5 hidden text-lg sm:block">One shared list, with a helping hand deciding who is best placed for each job.</p>
+        </div>
+      </section>
+      <div className="grid place-items-center px-5 py-10">
+      <div className="relative w-full max-w-[420px]">
+        <div className="mb-6">
+          <p className="enter-rise text-sm font-extrabold text-primary" style={{ "--i": 1 } as React.CSSProperties}>{familyName}</p>
+          <h1 className="enter-rise mt-1 font-display text-[32px] font-bold" style={{ "--i": 2 } as React.CSSProperties}>{isCreating ? "Create your account" : isRecovering ? "Reset your password" : "Welcome back"}</h1>
+          <p className="enter-rise mt-1.5 text-sm text-muted-foreground" style={{ "--i": 3 } as React.CSSProperties}>{isCreating ? "Then set up a family space or join one with an invite code." : isRecovering ? "A code is sent to your linked Telegram." : "Sign in to coordinate your family’s care."}</p>
         </div>
 
         <div className="enter-card">
         <div ref={cardRef}>
-        <Card className="is-visible bg-white/90 shadow-md backdrop-blur-xl">
+        <Card className="is-visible">
           <CardHeader>
             <div>
-              <h2 className="font-display text-xl font-semibold">{isCreating ? "Create an account" : mode === "forgot" ? "Forgot password" : mode === "reset" ? "Enter your code" : "Sign in"}</h2>
+              <h2 className="font-display text-[22px] font-bold">{isCreating ? "Create an account" : mode === "forgot" ? "Forgot password" : mode === "reset" ? "Enter your code" : "Sign in"}</h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 {isCreating ? `Choose a password with at least ${minPasswordLength} characters.`
                   : mode === "forgot" ? "Enter the email you sign in with."
@@ -169,7 +182,7 @@ export function LoginPage({ familyName, onAuthenticated }: LoginPageProps) {
                 <FloatingField id="login-name" label="Full name" icon={UserRound} name="name" type="text" autoComplete="name" required autoFocus maxLength={150} value={name} onChange={(event) => setName(event.target.value)} />
               )}
               {mode === "sign-in" && (
-                <div role="radiogroup" aria-label="Sign in with" className="grid grid-cols-2 gap-1 rounded-xl border border-border bg-muted/60 p-1">
+                <div role="radiogroup" aria-label="Sign in with" className="grid grid-cols-2 gap-1 rounded-2xl border border-border bg-muted p-1">
                   {(["email", "phone"] as const).map((option) => (
                     <button
                       key={option}
@@ -177,7 +190,7 @@ export function LoginPage({ familyName, onAuthenticated }: LoginPageProps) {
                       role="radio"
                       aria-checked={signInWith === option}
                       onClick={() => { setSignInWith(option); setErrorMessage(""); }}
-                      className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${signInWith === option ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                      className={`rounded-xl px-3 py-2 text-sm font-extrabold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${signInWith === option ? "shadow-soft bg-card text-foreground" : "text-muted-foreground hover:text-foreground"}`}
                     >
                       {option === "email" ? "Email" : "Phone number"}
                     </button>
@@ -241,6 +254,7 @@ export function LoginPage({ familyName, onAuthenticated }: LoginPageProps) {
             {mode === "sign-in" ? "Create an account" : "Sign in"}
           </button>
         </p>
+      </div>
       </div>
     </main>
   );

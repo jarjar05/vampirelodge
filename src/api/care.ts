@@ -103,6 +103,9 @@ function localTimeZone() {
   return Intl.DateTimeFormat().resolvedOptions().timeZone;
 }
 
+export type AskTurn = { role: "user" | "assistant"; text: string };
+export type AskAnswer = { text: string; taskIds: string[]; noteTitles: string[] };
+
 export const careApi = {
   getFamily: () => api<ApiFamily>("/families/me"),
   createFamily: (name: string) => api("/families", { method: "POST", body: { name } }),
@@ -170,6 +173,14 @@ export const careApi = {
     return { memberId: suggestion.member_id, reason: suggestion.reason, noteTitles: suggestion.note_titles };
   },
   /** Summarises my open tasks and suggests an order. The server reuses its last answer until my tasks change. */
+  /** Ask the family assistant a question. `history` is the conversation so far, oldest first. */
+  ask: async (question: string, history: AskTurn[]): Promise<AskAnswer> => {
+    const answer = await api<{ answer: string; task_ids: string[]; note_titles: string[] }>("/families/me/ask", {
+      method: "POST",
+      body: { question, history, timezone: localTimeZone() },
+    });
+    return { text: answer.answer, taskIds: answer.task_ids, noteTitles: answer.note_titles };
+  },
   planMyDay: async (refresh = false): Promise<DayPlan> => {
     const plan = await api<{ summary: string | null; steps: { task_id: string; note: string }[]; generated_at: string | null }>("/families/me/day-plan", {
       method: "POST",
@@ -306,5 +317,6 @@ export function toFamilyActivity(activity: ApiFamilyActivity, membersById: Reado
     action: activityVerbs[activity.action],
     subject: activity.task_title,
     time: formatRelative(activity.created_at),
+    at: activity.created_at,
   };
 }

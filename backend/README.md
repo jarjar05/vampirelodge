@@ -4,7 +4,7 @@ Minimal FastAPI backend foundation for the Family Care Coordinator frontend.
 
 ## Requirements
 
-- Python 3.10 or newer
+- Python 3.11 or newer
 - pip
 
 ## Setup
@@ -35,7 +35,7 @@ By default the backend stores its data in a SQLite file at `backend/data/app.db`
 python -m app.init_db
 ```
 
-The initializer uses SQLAlchemy `create_all` for a lightweight hackathon setup. It creates missing tables and adds new nullable or defaulted columns to existing ones, so re-run it after pulling model changes. It does not rename, retype, or drop columns, and it does not replace schema migrations for production.
+The initializer uses SQLAlchemy `create_all` for a lightweight hackathon setup. It creates missing tables, adds new nullable or defaulted columns to existing ones, and removes the tables and columns of features that have been taken out (appointments, and the task category and "for whom" fields), keeping every task. The server runs it on startup too. It does not rename or retype columns, and it does not replace schema migrations for production.
 
 ### Optional: PostgreSQL
 

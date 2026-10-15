@@ -197,4 +197,6 @@ export type FamilyActivityItem = {
   action: string;
   subject: string;
   time: string;
+  /** When it happened, as an ISO timestamp. */
+  at: string;
 };

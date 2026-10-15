@@ -156,6 +156,25 @@ class DayPlanResponse(BaseModel):
     generated_at: datetime | None
 
 
+class AskTurn(BaseModel):
+    role: Literal["user", "assistant"]
+    text: str = Field(min_length=1, max_length=4000)
+
+
+class AskRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=1000)
+    # Earlier messages in this conversation, oldest first, so follow-up questions make sense.
+    history: list[AskTurn] = Field(default_factory=list, max_length=20)
+    timezone: str | None = Field(default=None, max_length=64)
+
+
+class AskResponse(BaseModel):
+    answer: str
+    task_ids: list[uuid.UUID]
+    # Titles of the family notes the assistant was given.
+    note_titles: list[str]
+
+
 class FamilyActivityResponse(TaskActivityResponse):
     task_id: uuid.UUID
     task_title: str

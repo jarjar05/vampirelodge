@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { usePopover } from "@/hooks/use-popover";
 import type { CareNotification } from "@/lib/notifications";
 
-const panelClassName = "menu-pop absolute right-0 top-full z-30 mt-2 overflow-hidden rounded-xl border border-border bg-card text-foreground shadow-lg";
+const panelClassName = "menu-pop absolute right-0 top-full z-30 mt-2.5 overflow-hidden rounded-[20px] border border-border bg-card text-foreground shadow-[var(--shadow-lift)]";
 
 const toneDots: Record<CareNotification["tone"], string> = {
   alert: "bg-alert",
@@ -33,11 +33,11 @@ export function NotificationsMenu({
         aria-haspopup="true"
         aria-expanded={isOpen}
         title="Notifications"
-        className={`relative flex size-9 items-center justify-center rounded-xl transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${isOpen ? "bg-muted text-foreground" : "text-muted-foreground"}`}
+        className={`round-button relative flex size-[42px] items-center justify-center rounded-full border border-border bg-card hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${isOpen ? "text-foreground" : "text-muted-foreground"}`}
       >
         <Bell size={18} aria-hidden="true" />
         {count > 0 && (
-          <span aria-hidden="true" className="absolute -right-0.5 -top-0.5 flex min-w-4 items-center justify-center rounded-full bg-alert px-1 text-[10px] font-bold leading-4 text-white">
+          <span aria-hidden="true" className="absolute -right-1 -top-1 flex min-w-[18px] items-center justify-center rounded-full bg-alert px-1 text-[10px] font-extrabold leading-[18px] text-white">
             {count > 9 ? "9+" : count}
           </span>
         )}

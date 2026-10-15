@@ -1,5 +1,4 @@
 import { useState, type FormEvent } from "react";
-import { HeartPulse } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 
@@ -37,17 +36,15 @@ export function FamilySetup({
     <main className="app-backdrop grid min-h-screen place-items-center px-5 py-10 text-foreground">
       <div className="w-full max-w-md">
         <div className="mb-7 flex flex-col items-center text-center">
-          <span className="flex size-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-md shadow-primary/20">
-            <HeartPulse size={24} aria-hidden="true" />
-          </span>
-          <h1 className="mt-4 font-display text-3xl font-semibold">Welcome, {userName.trim().split(/\s+/)[0]}</h1>
+          <span aria-hidden="true" className="brand-mark grid size-12 place-items-center rounded-2xl text-xl">☀</span>
+          <h1 className="mt-4 font-display text-[32px] font-bold">Welcome, {userName.trim().split(/\s+/)[0]}</h1>
           <p className="mt-2 text-sm text-muted-foreground">Set up a family space, or join one you’ve been invited to.</p>
         </div>
 
         {errorMessage && <p role="alert" className="mb-4 rounded-lg bg-alert/10 px-3 py-2 text-sm text-alert">{errorMessage}</p>}
 
-        <Card className="bg-white/90 shadow-md backdrop-blur-xl">
-          <CardHeader><h2 className="font-display text-xl font-semibold">Create a family</h2></CardHeader>
+        <Card className="is-visible">
+          <CardHeader><h2 className="font-display text-[22px] font-bold">Create a family</h2></CardHeader>
           <CardContent className="pt-4">
             <form onSubmit={submit(() => onCreate(familyName))} className="space-y-4">
               <label className="block text-sm font-medium" htmlFor="family-name">Family name
@@ -58,8 +55,8 @@ export function FamilySetup({
           </CardContent>
         </Card>
 
-        <Card className="mt-5 bg-white/90 shadow-md backdrop-blur-xl">
-          <CardHeader><h2 className="font-display text-xl font-semibold">Join with an invite code</h2></CardHeader>
+        <Card className="is-visible mt-5">
+          <CardHeader><h2 className="font-display text-[22px] font-bold">Join with an invite code</h2></CardHeader>
           <CardContent className="pt-4">
             <form onSubmit={submit(() => onJoin(inviteCode))} className="space-y-4">
               <label className="block text-sm font-medium" htmlFor="invite-code">Invite code

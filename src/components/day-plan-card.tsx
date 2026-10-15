@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { ArrowRight, RefreshCw, Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
 import { careApi } from "@/api/care";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { formatRelative } from "@/lib/dates";
 import type { CareTask, DayPlan } from "@/types/care";
@@ -72,77 +71,79 @@ export function DayPlanCard({ tasks }: { tasks: readonly CareTask[] }) {
     : [];
 
   return (
-    <Card className="border-primary/25">
+    <Card>
       <CardHeader className="items-center">
-        <h2 className="flex items-center gap-2 font-display text-xl font-semibold"><Sparkles size={18} className="text-primary" aria-hidden="true" />Your plan</h2>
-        <div className="flex shrink-0 items-center gap-1.5">
-          <Badge variant="outline">AI summary</Badge>
-          <button
-            type="button"
-            aria-label="Refresh the summary"
-            title="Refresh the summary"
-            disabled={state.status === "loading"}
-            onClick={() => { refreshClicks += 1; setRequest((current) => ({ ...current, refreshToken: refreshClicks })); }}
-            className="grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-          >
-            <RefreshCw size={15} className={state.status === "loading" ? "animate-spin" : undefined} aria-hidden="true" />
-          </button>
-        </div>
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/12 px-2.5 py-1 text-xs font-extrabold text-primary"><Sparkles size={13} aria-hidden="true" />AI plan</span>
+        <button
+          type="button"
+          aria-label="Refresh the summary"
+          title="Refresh the summary"
+          disabled={state.status === "loading"}
+          onClick={() => { refreshClicks += 1; setRequest((current) => ({ ...current, refreshToken: refreshClicks })); }}
+          className="refresh-button grid size-[34px] shrink-0 place-items-center rounded-full border border-border bg-card text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+        >
+          <RefreshCw size={15} className={state.status === "loading" ? "animate-spin" : undefined} aria-hidden="true" />
+        </button>
       </CardHeader>
-      <CardContent className="pt-3">
+      <CardContent className="pt-2.5">
+        <h2 className="font-display text-[23px] font-bold">Your order for today</h2>
         {state.status === "loading" && (
-          <div role="status" className="space-y-2.5 py-1">
-            <p className="text-sm font-medium text-muted-foreground">Looking over your tasks…</p>
+          <div role="status" className="mt-3 space-y-2.5">
+            <p className="text-sm font-semibold text-muted-foreground">Looking over your tasks…</p>
             <span aria-hidden="true" className="block h-2.5 w-full animate-pulse rounded-full bg-primary/10" />
             <span aria-hidden="true" className="block h-2.5 w-2/3 animate-pulse rounded-full bg-primary/10" />
           </div>
         )}
         {state.status === "unavailable" && (
           <>
-            <p className="text-sm text-muted-foreground">
+            <p className="mt-2 text-[15px] text-muted-foreground">
               {state.message}{" "}
-              <button type="button" onClick={() => setRequest((current) => ({ ...current, attempt: current.attempt + 1 }))} className="rounded font-semibold text-primary link-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Try again</button>
+              <button type="button" onClick={() => setRequest((current) => ({ ...current, attempt: current.attempt + 1 }))} className="rounded font-extrabold text-primary link-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Try again</button>
             </p>
             {/* Without a plan, my tasks are still listed, soonest first. */}
-            <ul className="mt-3 divide-y divide-border">
-              {[...tasks].sort((first, second) => (first.dueAt ?? "9999").localeCompare(second.dueAt ?? "9999")).map((task) => (
-                <li key={task.id} className="flex items-center justify-between gap-4 py-3">
-                  <p className="min-w-0 truncate text-sm font-semibold">{task.title}</p>
-                  <span className={`shrink-0 whitespace-nowrap text-xs font-medium ${task.attention === "Overdue" ? "text-alert" : "text-muted-foreground"}`}>{task.time}</span>
-                </li>
+            <ol className="stagger mt-4 space-y-3">
+              {[...tasks].sort((first, second) => (first.dueAt ?? "9999").localeCompare(second.dueAt ?? "9999")).map((task, index) => (
+                <PlanStep key={task.id} number={index + 1} task={task} />
               ))}
-            </ul>
+            </ol>
           </>
         )}
         {state.status === "ready" && (
           <>
-            {state.plan.summary && <p className="text-sm leading-relaxed">{state.plan.summary}</p>}
+            {state.plan.summary && <p className="mt-2 text-[15.5px] leading-relaxed text-muted-foreground">{state.plan.summary}</p>}
             {steps.length > 0 && (
-              <>
-                <h3 className="mt-4 text-xs font-semibold uppercase tracking-[0.1em] text-primary">Suggested order</h3>
-                <ol className="stagger mt-2 space-y-3">
-                  {steps.map(({ task, note }, index) => (
-                    <li key={task.id} className="flex gap-3">
-                      <span aria-hidden="true" className="grid size-6 shrink-0 place-items-center rounded-full bg-primary/10 text-xs font-semibold text-primary">{index + 1}</span>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-                          <p className="min-w-0 text-sm font-semibold">{task.title}</p>
-                          <span className={`shrink-0 whitespace-nowrap text-xs font-medium ${task.attention === "Overdue" ? "text-alert" : "text-muted-foreground"}`}>{task.time}</span>
-                        </div>
-                        {note && <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{note}</p>}
-                      </div>
-                    </li>
-                  ))}
-                </ol>
-              </>
+              <ol aria-label="Suggested order" className="stagger mt-4 space-y-3">
+                {steps.map(({ task, note }, index) => <PlanStep key={task.id} number={index + 1} task={task} note={note} />)}
+              </ol>
             )}
-            {state.plan.generatedAt && <p className="mt-4 text-xs text-muted-foreground">A suggestion only · updated {formatRelative(state.plan.generatedAt).toLowerCase()}</p>}
           </>
         )}
-        <Link to="/tasks?filter=My%20Tasks" className="mt-4 inline-flex items-center gap-1 rounded-md text-sm font-semibold text-primary link-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-          All my tasks<ArrowRight size={15} aria-hidden="true" />
-        </Link>
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-muted-foreground">
+            {state.status === "ready" && state.plan.generatedAt ? `A suggestion only · updated ${formatRelative(state.plan.generatedAt).toLowerCase()}` : ""}
+          </p>
+          <Link to="/tasks?filter=My%20Tasks" className="inline-flex items-center gap-1 rounded-md text-sm font-extrabold text-primary link-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            All my tasks<ArrowRight size={15} aria-hidden="true" />
+          </Link>
+        </div>
       </CardContent>
     </Card>
+  );
+}
+
+/** One task in the suggested order: its number, title, when it is due, and why it sits there. */
+function PlanStep({ number, task, note }: { number: number; task: CareTask; note?: string }) {
+  const overdue = task.attention === "Overdue";
+  return (
+    <li className="flex gap-3.5 rounded-[18px] border border-border bg-muted px-4 py-3.5">
+      <span aria-hidden="true" className="plan-step-number grid size-[34px] shrink-0 place-items-center rounded-xl font-display text-[15px] font-bold text-white">{number}</span>
+      <div className="min-w-0">
+        <p className="font-extrabold">{task.title}</p>
+        <p className="mt-0.5 text-sm text-muted-foreground">
+          <span className={overdue ? "font-extrabold text-alert" : undefined}>{task.time}</span>
+          {note ? ` · ${note}` : ""}
+        </p>
+      </div>
+    </li>
   );
 }

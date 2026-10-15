@@ -3,20 +3,20 @@ import type { ButtonHTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-[14px] text-sm font-extrabold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50",
   {
     variants: {
       variant: {
         // Lifts and gains a coloured shadow on hover, then presses back down on click.
-        default: "bg-primary text-primary-foreground shadow-sm shadow-primary/30 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/50 active:translate-y-0 active:shadow-sm",
+        default: "bg-primary text-primary-foreground shadow-[0_8px_18px_-10px_var(--primary)] hover:-translate-y-0.5 hover:shadow-[0_14px_24px_-12px_var(--primary)] active:translate-y-0",
         // Lifts like the main buttons, with a soft neutral shadow and a green edge.
-        outline: "border border-border bg-card shadow-sm shadow-foreground/[0.04] hover:-translate-y-0.5 hover:border-primary/40 hover:text-primary hover:shadow-lg hover:shadow-foreground/10 active:translate-y-0 active:shadow-sm",
+        outline: "shadow-soft border border-border bg-card hover:-translate-y-0.5 hover:border-primary/40 hover:text-primary hover:shadow-[var(--shadow-lift)] active:translate-y-0",
         ghost: "hover:bg-primary/10 hover:text-primary",
       },
       size: {
-        default: "h-10 px-4 py-2",
-        sm: "h-9 px-3",
-        icon: "size-10",
+        default: "h-11 px-[18px] py-2",
+        sm: "h-9 rounded-xl px-3.5",
+        icon: "size-10 rounded-full",
       },
     },
     defaultVariants: {

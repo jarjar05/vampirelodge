@@ -37,11 +37,11 @@ import {
   type FamilyMember,
   type TaskActivity,
 } from "@/types/care";
-import { PageHeading } from "@/components/page-parts";
+import { PageHeader } from "@/components/page-parts";
 
 export function CarePlanPage({ care, currentUser }: { care: CareData; currentUser: AuthUser }) {
   const { tasks, members } = care;
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const requestedFilter = searchParams.get("filter");
   const linkedFilter: TaskFilter | null = requestedFilter === "My Tasks" || requestedFilter === "Unassigned" || requestedFilter === "Needs attention" ? requestedFilter : null;
   const [activeFilter, setActiveFilter] = useState<TaskFilter>(linkedFilter ?? "All");
@@ -67,6 +67,11 @@ export function CarePlanPage({ care, currentUser }: { care: CareData; currentUse
   const [newTaskTime, setNewTaskTime] = useState("18:00");
   const [newTaskPriority, setNewTaskPriority] = useState<CareTask["priority"]>("Normal");
   const [newTaskRecurrence, setNewTaskRecurrence] = useState<TaskRecurrence | null>(null);
+  // A link to one task, such as from the assistant's answer, opens its details.
+  const linkedTaskId = searchParams.get("task");
+  useEffect(() => {
+    if (linkedTaskId) setSelectedTaskId(linkedTaskId);
+  }, [linkedTaskId]);
   const selectedTask = tasks.find((task) => task.id === selectedTaskId);
   const recommendationTask = tasks.find((task) => task.id === recommendationTaskId);
 
@@ -214,15 +219,15 @@ export function CarePlanPage({ care, currentUser }: { care: CareData; currentUse
 
   return (
     <>
-      <PageHeading title="Tasks" />
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground">{tasks.filter((task) => !task.complete).length} active · {tasks.filter((task) => task.complete).length} completed</p>
-        <div className="flex items-center gap-3">
-          <span className="hidden items-center gap-2 text-xs text-muted-foreground sm:inline-flex"><UsersRound size={15} aria-hidden="true" />Shared with {members.length} family {members.length === 1 ? "member" : "members"}</span>
-          <Button size="sm" variant="outline" aria-expanded={isImportingDocument} onClick={() => setIsImportingDocument((current) => !current)}><FileText size={15} aria-hidden="true" />From a document</Button>
-          <Button size="sm" onClick={() => { clearDraft(); setIsCreatingTask((current) => !current); }}><Plus size={15} aria-hidden="true" />New task</Button>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow={`${tasks.filter((task) => !task.complete).length} active · ${tasks.filter((task) => task.complete).length} completed`}
+        title="Tasks"
+        lead={<span className="inline-flex items-center gap-2"><UsersRound size={16} aria-hidden="true" />Shared with {members.length} family {members.length === 1 ? "member" : "members"}</span>}
+        actions={<>
+          <Button variant="outline" aria-expanded={isImportingDocument} onClick={() => setIsImportingDocument((current) => !current)}><FileText size={15} aria-hidden="true" />From a document</Button>
+          <Button onClick={() => { clearDraft(); setIsCreatingTask((current) => !current); }}><Plus size={15} aria-hidden="true" />New task</Button>
+        </>}
+      />
       {isImportingDocument && (
         <DocumentImport className="mb-5" onReview={reviewDraft} onClose={() => { setIsImportingDocument(false); if (draftNote) { clearDraft(); setIsCreatingTask(false); } }} />
       )}
@@ -304,75 +309,70 @@ export function CarePlanPage({ care, currentUser }: { care: CareData; currentUse
           }}
         />
       )}
-      <div ref={tabListRef} role="tablist" aria-label="Filter care tasks" className="relative mb-4 flex gap-1 overflow-x-auto rounded-xl border border-border bg-muted/60 p-1">
-        {/* The white highlight slides to the chosen category instead of jumping. */}
-        <span aria-hidden="true" className="tab-thumb pointer-events-none absolute inset-y-1 left-0 rounded-lg bg-card shadow-sm" style={tabThumb ? { translate: `${tabThumb.left}px 0`, width: tabThumb.width } : { opacity: 0 }} />
-        {filterOptions.map((filter) => (
-          <button
-            key={filter}
-            type="button"
-            role="tab"
-            data-tab={filter}
-            aria-selected={activeFilter === filter}
-            aria-controls="tasks-panel"
-            onClick={() => chooseFilter(filter)}
-            className={`relative flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${activeFilter === filter ? "text-foreground" : "text-muted-foreground hover:text-foreground"}`}
-          >
-            {filter}<span className="text-xs opacity-70">{countForFilter(filter)}</span>
-          </button>
-        ))}
-      </div>
-      <Card className="overflow-hidden" aria-label={`${activeFilter} tasks`}>
-        {canFilterTasks && (
-          <div className="border-b border-border">
-            <div className="flex items-center justify-between gap-3 bg-muted/20 px-4 py-2">
-              <span className="text-xs text-muted-foreground">{sortedTasks.length} of {visibleTasks.length} tasks</span>
-              <Button
-                size="sm"
-                variant="ghost"
-                aria-expanded={isTaskFiltersExpanded}
-                aria-controls="all-task-filters"
-                onClick={() => setIsTaskFiltersExpanded((expanded) => !expanded)}
-              >
-                <SlidersHorizontal size={15} aria-hidden="true" />Filters
-                {activeTaskFilterCount > 0 && <Badge variant="secondary" className="px-1.5 py-1 text-[10px]">{activeTaskFilterCount}</Badge>}
-              </Button>
-            </div>
-            {isTaskFiltersExpanded && (
-              <div id="all-task-filters" className="grid gap-3 bg-muted/30 p-4 sm:grid-cols-2 xl:grid-cols-[minmax(130px,1fr)_minmax(130px,1fr)_minmax(150px,1fr)_auto_auto] xl:items-end">
-                <label className="text-xs font-semibold text-muted-foreground">Priority
-                  <select value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value as CareTask["priority"] | "All priorities")} className="mt-1.5 min-h-9 w-full rounded-md border border-input bg-background px-3 text-sm font-normal text-foreground focus:outline-none focus:ring-2 focus:ring-ring">
-                    <option>All priorities</option>
-                    {taskPriorities.map((priority) => <option key={priority}>{priority}</option>)}
-                  </select>
-                </label>
-                <label className="text-xs font-semibold text-muted-foreground">Assignee
-                  <select value={assigneeFilter} onChange={(event) => setAssigneeFilter(event.target.value)} className="mt-1.5 min-h-9 w-full rounded-md border border-input bg-background px-3 text-sm font-normal text-foreground focus:outline-none focus:ring-2 focus:ring-ring">
-                    <option value="All assignees">All assignees</option>
-                    <option value="Unassigned">Unassigned</option>
-                    {members.map((member) => <option key={member.id} value={member.id}>{member.firstName}</option>)}
-                  </select>
-                </label>
-                <label className="text-xs font-semibold text-muted-foreground">Due order
-                  <select value={dueSortDirection} onChange={(event) => setDueSortDirection(event.target.value as "earliest" | "latest")} className="mt-1.5 min-h-9 w-full rounded-md border border-input bg-background px-3 text-sm font-normal text-foreground focus:outline-none focus:ring-2 focus:ring-ring">
-                    <option value="earliest">Earliest first</option>
-                    <option value="latest">Latest first</option>
-                  </select>
-                </label>
-                <label className="flex min-h-9 items-center gap-2 text-sm font-medium text-foreground">
-                  <input type="checkbox" checked={atRiskOnly} onChange={(event) => setAtRiskOnly(event.target.checked)} className="size-4 accent-[hsl(var(--primary))]" />
-                  At risk only
-                </label>
-                <Button size="sm" variant="outline" disabled={!hasTaskFilters} onClick={() => { setPriorityFilter("All priorities"); setAssigneeFilter("All assignees"); setAtRiskOnly(false); setDueSortDirection("earliest"); }}><RotateCcw size={14} aria-hidden="true" />Clear filters</Button>
-              </div>
-            )}
-          </div>
-        )}
-        <div className="hidden grid-cols-[minmax(240px,1.6fr)_minmax(225px,1.35fr)_minmax(145px,1fr)_minmax(100px,0.8fr)] gap-3 border-b border-border bg-muted/40 px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground xl:grid">
-          <span>Task</span><span>Assignment</span><span>Due</span><span>Priority</span>
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div ref={tabListRef} role="tablist" aria-label="Filter care tasks" className="relative flex min-w-0 gap-1 overflow-x-auto rounded-2xl border border-border bg-muted p-1">
+          {/* The white highlight slides to the chosen category instead of jumping. */}
+          <span aria-hidden="true" className="tab-thumb shadow-soft pointer-events-none absolute inset-y-1 left-0 rounded-xl bg-card" style={tabThumb ? { translate: `${tabThumb.left}px 0`, width: tabThumb.width } : { opacity: 0 }} />
+          {filterOptions.map((filter) => (
+            <button
+              key={filter}
+              type="button"
+              role="tab"
+              data-tab={filter}
+              aria-selected={activeFilter === filter}
+              aria-controls="tasks-panel"
+              onClick={() => chooseFilter(filter)}
+              className={`relative flex shrink-0 items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-extrabold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${activeFilter === filter ? "text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              {filter}<span className="text-xs opacity-70">{countForFilter(filter)}</span>
+            </button>
+          ))}
         </div>
+        {canFilterTasks && (
+          <Button
+            size="sm"
+            variant="outline"
+            aria-expanded={isTaskFiltersExpanded}
+            aria-controls="all-task-filters"
+            onClick={() => setIsTaskFiltersExpanded((expanded) => !expanded)}
+          >
+            <SlidersHorizontal size={15} aria-hidden="true" />Filters
+            {activeTaskFilterCount > 0 && <Badge variant="secondary" className="px-1.5 py-1 text-[10px]">{activeTaskFilterCount}</Badge>}
+          </Button>
+        )}
+      </div>
+      {canFilterTasks && isTaskFiltersExpanded && (
+        <div id="all-task-filters" className="shadow-soft mb-4 grid gap-3 rounded-[22px] border border-border bg-card p-5 sm:grid-cols-2 xl:grid-cols-[minmax(130px,1fr)_minmax(130px,1fr)_minmax(150px,1fr)_auto_auto] xl:items-end">
+          <label className="text-xs font-semibold text-muted-foreground">Priority
+            <select value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value as CareTask["priority"] | "All priorities")} className="mt-1.5 min-h-9 w-full rounded-md border border-input bg-background px-3 text-sm font-normal text-foreground focus:outline-none focus:ring-2 focus:ring-ring">
+              <option>All priorities</option>
+              {taskPriorities.map((priority) => <option key={priority}>{priority}</option>)}
+            </select>
+          </label>
+          <label className="text-xs font-semibold text-muted-foreground">Assignee
+            <select value={assigneeFilter} onChange={(event) => setAssigneeFilter(event.target.value)} className="mt-1.5 min-h-9 w-full rounded-md border border-input bg-background px-3 text-sm font-normal text-foreground focus:outline-none focus:ring-2 focus:ring-ring">
+              <option value="All assignees">All assignees</option>
+              <option value="Unassigned">Unassigned</option>
+              {members.map((member) => <option key={member.id} value={member.id}>{member.firstName}</option>)}
+            </select>
+          </label>
+          <label className="text-xs font-semibold text-muted-foreground">Due order
+            <select value={dueSortDirection} onChange={(event) => setDueSortDirection(event.target.value as "earliest" | "latest")} className="mt-1.5 min-h-9 w-full rounded-md border border-input bg-background px-3 text-sm font-normal text-foreground focus:outline-none focus:ring-2 focus:ring-ring">
+              <option value="earliest">Earliest first</option>
+              <option value="latest">Latest first</option>
+            </select>
+          </label>
+          <label className="flex min-h-9 items-center gap-2 text-sm font-medium text-foreground">
+            <input type="checkbox" checked={atRiskOnly} onChange={(event) => setAtRiskOnly(event.target.checked)} className="size-4 accent-[var(--primary)]" />
+            At risk only
+          </label>
+          <Button size="sm" variant="outline" disabled={!hasTaskFilters} onClick={() => { setPriorityFilter("All priorities"); setAssigneeFilter("All assignees"); setAtRiskOnly(false); setDueSortDirection("earliest"); }}><RotateCcw size={14} aria-hidden="true" />Clear filters</Button>
+        </div>
+      )}
+      <section aria-label={`${activeFilter} tasks`}>
+        {canFilterTasks && <p className="mb-2.5 px-1 text-xs font-bold text-muted-foreground">{sortedTasks.length} of {visibleTasks.length} tasks</p>}
         {/* Remounted per category, so the new list slides in from the side of the tab that was chosen. */}
-        <div key={activeFilter} id="tasks-panel" role="tabpanel" className={`stagger divide-y divide-border ${tabDirection === 1 ? "tab-enter-right" : tabDirection === -1 ? "tab-enter-left" : ""}`}>
+        <div key={activeFilter} id="tasks-panel" role="tabpanel" className={`stagger space-y-3 ${tabDirection === 1 ? "tab-enter-right" : tabDirection === -1 ? "tab-enter-left" : ""}`}>
           {sortedTasks.map((task) => (
             <TaskListItem
               key={task.id}
@@ -386,15 +386,19 @@ export function CarePlanPage({ care, currentUser }: { care: CareData; currentUse
               onOpen={() => setSelectedTaskId(task.id)}
             />
           ))}
-          {sortedTasks.length === 0 && <p className="px-5 py-12 text-center text-sm text-muted-foreground">No tasks match these filters.</p>}
+          {sortedTasks.length === 0 && <p className="shadow-soft rounded-[22px] border border-border bg-card px-5 py-12 text-center text-sm text-muted-foreground">No tasks match these filters.</p>}
         </div>
-      </Card>
+      </section>
       {selectedTask && (
         <TaskDetailDialog
           task={selectedTask}
           members={members}
           activity={selectedTask.activity}
-          onClose={() => setSelectedTaskId(null)}
+          onClose={() => {
+            setSelectedTaskId(null);
+            // Forget the link, so following it again opens the task again.
+            if (linkedTaskId) setSearchParams((current) => { current.delete("task"); return current; }, { replace: true });
+          }}
           onReassign={(assigneeId) => void care.assignTask(selectedTask.id, assigneeId)}
           onStopRepeating={() => void care.stopRepeating(selectedTask.id)}
           onSave={(changes) => care.updateTask(selectedTask.id, changes)}
@@ -491,7 +495,7 @@ function TaskListItem({
       onClick={onOpen}
       ref={rowRef}
       onAnimationEnd={(event) => { if (event.target === event.currentTarget && event.animationName === "row-collapse") onExited?.(); }}
-      className={`row-lift ${justCompleted ? "just-completed" : isExiting ? "task-leaving" : ""} grid cursor-pointer gap-3 px-4 py-4 sm:grid-cols-2 xl:grid-cols-[minmax(240px,1.6fr)_minmax(225px,1.35fr)_minmax(145px,1fr)_minmax(100px,0.8fr)] xl:items-center xl:px-5 ${isAtRisk ? "border-l-4 border-l-warning bg-warning/20 pl-3" : !looksOpen ? "bg-muted/30" : ""}`}
+      className={`row-lift ${justCompleted ? "just-completed" : isExiting ? "task-leaving" : ""} shadow-soft grid cursor-pointer gap-3 rounded-[20px] border border-border bg-card px-4 py-4 sm:grid-cols-2 xl:grid-cols-[minmax(240px,1.6fr)_minmax(225px,1.35fr)_minmax(145px,1fr)_minmax(100px,0.8fr)] xl:items-center xl:px-5 ${isAtRisk ? "border-l-[5px] border-l-alert!" : !looksOpen ? "bg-muted/60" : ""}`}
     >
       <div className="flex min-w-0 items-center gap-3">
         <button
@@ -499,13 +503,13 @@ function TaskListItem({
           onClick={(event) => { event.stopPropagation(); onToggle(); }}
           aria-label={`${task.complete ? "Reopen" : "Mark complete"}: ${task.title}`}
           aria-pressed={task.complete}
-          className={`task-check relative flex size-5 shrink-0 items-center justify-center rounded-full border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${task.complete ? "border-primary bg-primary text-primary-foreground" : "border-input bg-background hover:border-primary"}`}
+          className={`task-check relative flex size-[26px] shrink-0 items-center justify-center rounded-full border-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${task.complete ? "border-primary bg-primary text-primary-foreground" : "border-input bg-background hover:border-primary"}`}
         >
           {/* Always present, so the tick can draw itself when the task is completed. */}
-          <Check size={12} strokeWidth={3} aria-hidden="true" />
+          <Check size={14} strokeWidth={3} aria-hidden="true" />
           {justCompleted && <span aria-hidden="true" className="task-burst" />}
         </button>
-        <button type="button" onClick={(event) => { event.stopPropagation(); onOpen(); }} aria-haspopup="dialog" data-done={task.complete} className="task-title min-w-0 text-left text-sm font-semibold hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <button type="button" onClick={(event) => { event.stopPropagation(); onOpen(); }} aria-haspopup="dialog" data-done={task.complete} className="task-title min-w-0 text-left text-[15px] font-extrabold hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           {task.title}
         </button>
       </div>
@@ -608,6 +612,26 @@ function describeActivity(item: TaskActivity) {
     case "Completed": return `${item.actor} completed it`;
     case "Reopened": return `${item.actor} reopened it`;
   }
+}
+
+/** The details of one task, opened from anywhere else it appears, such as the calendars. */
+export function TaskDetails({ care, taskId, onClose }: { care: CareData; taskId: string; onClose: () => void }) {
+  const task = care.tasks.find((item) => item.id === taskId);
+  // A task deleted from its details simply disappears.
+  if (!task) return null;
+  return (
+    <TaskDetailDialog
+      task={task}
+      members={care.members}
+      activity={task.activity}
+      onClose={onClose}
+      onReassign={(assigneeId) => void care.assignTask(task.id, assigneeId)}
+      onStopRepeating={() => void care.stopRepeating(task.id)}
+      onSave={(changes) => care.updateTask(task.id, changes)}
+      onDelete={() => care.deleteTask(task.id)}
+      onComplete={() => void (task.complete ? care.reopenTask(task.id) : care.completeTask(task.id))}
+    />
+  );
 }
 
 function TaskDetailDialog({

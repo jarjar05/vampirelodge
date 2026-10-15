@@ -7,7 +7,10 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "dev:all": "node scripts/dev.mjs",
+    "demo": "node scripts/dev.mjs --demo",
+    "demo:save": "cd backend && .venv/bin/python -m app.demo_snapshot save"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",

@@ -1,83 +1,185 @@
 @import "tailwindcss";
 
 @theme {
-  --font-display: "Playfair Display", Georgia, serif;
-  --color-background: hsl(var(--background));
-  --color-foreground: hsl(var(--foreground));
-  --color-card: hsl(var(--card));
-  --color-primary: hsl(var(--primary));
-  --color-primary-foreground: hsl(var(--primary-foreground));
-  --color-secondary: hsl(var(--secondary));
-  --color-secondary-foreground: hsl(var(--secondary-foreground));
-  --color-muted: hsl(var(--muted));
-  --color-muted-foreground: hsl(var(--muted-foreground));
-  --color-accent: hsl(var(--accent));
-  --color-accent-foreground: hsl(var(--accent-foreground));
-  --color-border: hsl(var(--border));
-  --color-input: hsl(var(--input));
-  --color-ring: hsl(var(--ring));
-  --color-sidebar: hsl(var(--sidebar));
-  --color-success: hsl(var(--success));
-  --color-success-foreground: hsl(var(--success-foreground));
-  --color-warning: hsl(var(--warning));
-  --color-warning-foreground: hsl(var(--warning-foreground));
-  --color-alert: hsl(var(--alert));
+  --font-display: "Fraunces", Georgia, serif;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-alert: var(--alert);
+  /* The family palette: each person's colour, and the colours of the illustrations. */
+  --color-clay: var(--primary);
+  --color-sage: var(--sage);
+  --color-mustard: var(--mustard);
+  --color-sky: var(--sky);
+  --color-plum: var(--plum);
+  --color-teal: var(--teal);
+  --color-rose: var(--rose);
+  --color-indigo: var(--indigo);
 }
 
 :root {
-  font-family: "Plus Jakarta Sans", "Avenir Next", Avenir, "Segoe UI", sans-serif;
+  font-family: "Nunito", "Avenir Next", Avenir, "Segoe UI", sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  color-scheme: light;
 
-  /* Warm paper background with a deeper green, a livelier coral and a richer gold. */
-  --background: 38 50% 97%;
-  --foreground: 28 24% 12%;
-  --card: 0 0% 100%;
-  --primary: 152 46% 33%;
-  --primary-foreground: 0 0% 100%;
-  --secondary: 42 100% 88%;
-  --secondary-foreground: 34 92% 30%;
-  --muted: 34 42% 93%;
-  --muted-foreground: 28 9% 40%;
-  --accent: 14 95% 93%;
-  --accent-foreground: 12 80% 42%;
-  --border: 32 36% 88%;
-  --input: 30 22% 78%;
-  --ring: 152 46% 33%;
-  --sidebar: 0 0% 100%;
-  --success: 146 50% 89%;
-  --success-foreground: 152 55% 24%;
-  --warning: 42 100% 88%;
-  --warning-foreground: 34 92% 30%;
-  --alert: 10 82% 43%;
+  /* The family journal: warm paper, terracotta clay, sage, mustard and sky. */
+  --background: hsl(36 65% 95%);
+  --foreground: hsl(28 23% 14%);
+  --card: hsl(43 100% 99%);
+  --primary: hsl(16 68% 54%);
+  --primary-foreground: hsl(0 0% 100%);
+  --secondary: hsl(42 85% 89%);
+  --secondary-foreground: hsl(39 85% 29%);
+  --muted: hsl(36 53% 93%);
+  --muted-foreground: hsl(29 15% 42%);
+  --accent: hsl(21 82% 91%);
+  --accent-foreground: hsl(17 64% 43%);
+  --border: hsl(36 40% 86%);
+  --input: hsl(35 34% 79%);
+  --ring: hsl(16 68% 54%);
+  --success: hsl(125 24% 91%);
+  --success-foreground: hsl(135 27% 34%);
+  --warning: hsl(42 85% 89%);
+  --warning-foreground: hsl(39 85% 29%);
+  --alert: hsl(10 65% 48%);
+  --sage: hsl(135 20% 47%);
+  --mustard: hsl(40 76% 55%);
+  --sky: hsl(211 49% 57%);
+  --plum: hsl(310 26% 48%);
+  --teal: hsl(175 42% 43%);
+  --rose: hsl(344 49% 57%);
+  --indigo: hsl(237 42% 59%);
+
+  /* The illustrated sky and hills at the top of each page. */
+  --scene-top: #ffd9b0;
+  --scene-bottom: #ffeedd;
+  --hill-1: #9fc4a3;
+  --hill-2: #7fae88;
+  --sun: #f6a945;
+  --grid-line: rgba(122, 106, 91, 0.14);
+
+  --shadow-soft: 0 2px 0 rgba(45, 36, 28, 0.05), 0 18px 36px -24px rgba(122, 90, 60, 0.45);
+  --shadow-lift: 0 2px 0 rgba(45, 36, 28, 0.05), 0 26px 44px -24px rgba(122, 90, 60, 0.6);
 
   /* The two motion curves used everywhere: a soft landing, and a slight overshoot for small playful moments. */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
+/* Every colour token is registered as a colour, so switching between light and dark fades each one smoothly on the
+   live page. Nothing is frozen in a snapshot: the illustration and everything else keep moving through the change. */
+@property --background { syntax: "<color>"; inherits: true; initial-value: hsl(36 65% 95%); }
+@property --foreground { syntax: "<color>"; inherits: true; initial-value: hsl(28 23% 14%); }
+@property --card { syntax: "<color>"; inherits: true; initial-value: hsl(43 100% 99%); }
+@property --primary { syntax: "<color>"; inherits: true; initial-value: hsl(16 68% 54%); }
+@property --primary-foreground { syntax: "<color>"; inherits: true; initial-value: hsl(0 0% 100%); }
+@property --secondary { syntax: "<color>"; inherits: true; initial-value: hsl(42 85% 89%); }
+@property --secondary-foreground { syntax: "<color>"; inherits: true; initial-value: hsl(39 85% 29%); }
+@property --muted { syntax: "<color>"; inherits: true; initial-value: hsl(36 53% 93%); }
+@property --muted-foreground { syntax: "<color>"; inherits: true; initial-value: hsl(29 15% 42%); }
+@property --accent { syntax: "<color>"; inherits: true; initial-value: hsl(21 82% 91%); }
+@property --accent-foreground { syntax: "<color>"; inherits: true; initial-value: hsl(17 64% 43%); }
+@property --border { syntax: "<color>"; inherits: true; initial-value: hsl(36 40% 86%); }
+@property --input { syntax: "<color>"; inherits: true; initial-value: hsl(35 34% 79%); }
+@property --ring { syntax: "<color>"; inherits: true; initial-value: hsl(16 68% 54%); }
+@property --success { syntax: "<color>"; inherits: true; initial-value: hsl(125 24% 91%); }
+@property --success-foreground { syntax: "<color>"; inherits: true; initial-value: hsl(135 27% 34%); }
+@property --warning { syntax: "<color>"; inherits: true; initial-value: hsl(42 85% 89%); }
+@property --warning-foreground { syntax: "<color>"; inherits: true; initial-value: hsl(39 85% 29%); }
+@property --alert { syntax: "<color>"; inherits: true; initial-value: hsl(10 65% 48%); }
+@property --sage { syntax: "<color>"; inherits: true; initial-value: hsl(135 20% 47%); }
+@property --mustard { syntax: "<color>"; inherits: true; initial-value: hsl(40 76% 55%); }
+@property --sky { syntax: "<color>"; inherits: true; initial-value: hsl(211 49% 57%); }
+@property --plum { syntax: "<color>"; inherits: true; initial-value: hsl(310 26% 48%); }
+@property --teal { syntax: "<color>"; inherits: true; initial-value: hsl(175 42% 43%); }
+@property --rose { syntax: "<color>"; inherits: true; initial-value: hsl(344 49% 57%); }
+@property --indigo { syntax: "<color>"; inherits: true; initial-value: hsl(237 42% 59%); }
+@property --scene-top { syntax: "<color>"; inherits: true; initial-value: #ffd9b0; }
+@property --scene-bottom { syntax: "<color>"; inherits: true; initial-value: #ffeedd; }
+@property --hill-1 { syntax: "<color>"; inherits: true; initial-value: #9fc4a3; }
+@property --hill-2 { syntax: "<color>"; inherits: true; initial-value: #7fae88; }
+@property --sun { syntax: "<color>"; inherits: true; initial-value: #f6a945; }
+@property --grid-line { syntax: "<color>"; inherits: true; initial-value: rgba(122, 106, 91, 0.14); }
+
+:root {
+  transition-property: --background, --foreground, --card, --primary, --primary-foreground, --secondary, --secondary-foreground, --muted, --muted-foreground, --accent, --accent-foreground, --border, --input, --ring, --success, --success-foreground, --warning, --warning-foreground, --alert, --sage, --mustard, --sky, --plum, --teal, --rose, --indigo, --scene-top, --scene-bottom, --hill-1, --hill-2, --sun, --grid-line;
+  transition-duration: 0.7s;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Evening: the same journal by lamplight. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --background: hsl(30 17% 9%);
+  --foreground: hsl(34 49% 92%);
+  --card: hsl(30 16% 12%);
+  --primary: hsl(17 81% 62%);
+  --primary-foreground: hsl(0 0% 100%);
+  --secondary: hsl(37 29% 18%);
+  --secondary-foreground: hsl(41 84% 65%);
+  --muted: hsl(30 16% 15%);
+  --muted-foreground: hsl(31 20% 65%);
+  --accent: hsl(21 31% 18%);
+  --accent-foreground: hsl(18 86% 73%);
+  --border: hsl(30 16% 20%);
+  --input: hsl(30 16% 25%);
+  --ring: hsl(17 81% 62%);
+  --success: hsl(132 16% 18%);
+  --success-foreground: hsl(134 26% 62%);
+  --warning: hsl(37 29% 18%);
+  --warning-foreground: hsl(41 84% 65%);
+  --alert: hsl(12 100% 72%);
+  --sage: hsl(134 26% 62%);
+  --mustard: hsl(41 84% 65%);
+  --sky: hsl(212 64% 71%);
+  --plum: hsl(312 34% 66%);
+  --teal: hsl(174 44% 60%);
+  --rose: hsl(344 64% 72%);
+  --indigo: hsl(238 60% 75%);
+
+  --scene-top: #2b2a4f;
+  --scene-bottom: #50415e;
+  --hill-1: #31473a;
+  --hill-2: #263a2e;
+  --sun: #f6e3a8;
+  --grid-line: rgba(184, 167, 149, 0.12);
+
+  --shadow-soft: 0 18px 36px -24px rgba(0, 0, 0, 0.8);
+  --shadow-lift: 0 26px 44px -22px rgba(0, 0, 0, 0.9);
+}
+
 * {
-  border-color: hsl(var(--border));
+  border-color: var(--border);
 }
 
 body {
   min-width: 320px;
   min-height: 100vh;
   margin: 0;
-  background: hsl(var(--background));
-  transition: background-color 0.3s ease, color 0.3s ease;
+  background: var(--background);
 }
 
-/* Page background: soft washes of the brand green and coral over the paper colour. */
+/* Page background: plain warm paper. */
 .app-backdrop {
-  background:
-    radial-gradient(52rem 34rem at 108% -8%, hsl(var(--primary) / 0.13), transparent 62%),
-    radial-gradient(44rem 30rem at -12% 104%, hsl(var(--accent-foreground) / 0.1), transparent 60%),
-    radial-gradient(36rem 26rem at 38% -18%, hsl(var(--secondary-foreground) / 0.07), transparent 60%),
-    hsl(var(--background));
-  background-attachment: fixed;
+  background: var(--background);
 }
 
 button {
@@ -140,14 +242,14 @@ a:active {
     translate 0.6s var(--ease-out) calc(120ms + var(--stagger-index, 10) * 55ms),
     transform 0.4s var(--ease-out),
     box-shadow 0.4s var(--ease-out),
-    border-radius 0.4s var(--ease-out),
+    border-color 0.4s,
     background-color 0.3s;
 }
 .row-lift:hover:not(.just-completed):not(.task-leaving) {
   z-index: 1;
-  transform: translateY(-2px);
-  border-radius: 0.875rem;
-  box-shadow: 0 10px 22px -16px hsl(var(--foreground) / 0.28), 0 0 0 1px hsl(var(--primary) / 0.22);
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-lift);
+  border-color: color-mix(in srgb, var(--primary) 30%, transparent);
 }
 
 /* Progress bars grow from the left when their card is revealed. */
@@ -177,7 +279,7 @@ a:active {
     position: relative;
   }
   .row-lift:hover:not(.just-completed):not(.task-leaving) {
-    background-color: hsl(var(--card));
+    background-color: var(--card);
   }
 
   /* An underline that draws in from the left and leaves to the right. */
@@ -228,14 +330,14 @@ a:active {
     width: 100%;
     overflow: hidden;
     border-radius: 0.75rem;
-    background: hsl(var(--primary));
-    color: hsl(var(--primary-foreground));
+    background: var(--primary);
+    color: var(--primary-foreground);
     font-size: 0.875rem;
     font-weight: 600;
   }
   .submit-morph:hover {
     translate: 0 -2px;
-    box-shadow: 0 12px 26px -12px hsl(var(--primary) / 0.7);
+    box-shadow: 0 12px 26px -12px color-mix(in srgb, var(--primary) 70%, transparent);
   }
   .submit-morph > span {
     position: absolute;
@@ -285,31 +387,25 @@ a:active {
 
 /* Timings for the buttons and links above. They sit outside the layer because the plain "button, a" rule
    near the top of this file would otherwise override anything inside one. */
-.card-lift { transition: translate 0.4s var(--ease-out), box-shadow 0.4s var(--ease-out), border-color 0.4s; }
 .task-check { transition: background-color 0.25s, border-color 0.25s, scale 0.35s var(--ease-spring); }
 .task-title { transition: background-size 0.3s var(--ease-out), color 0.3s; }
 .submit-morph { transition: width 0.5s var(--ease-out), border-radius 0.5s var(--ease-out), box-shadow 0.3s, translate 0.3s var(--ease-out), scale 0.2s var(--ease-out); }
 
 /* Hover, focus and done states that change a colour a Tailwind class also sets. Outside the layer so they win. */
-.card-lift:hover {
-  translate: 0 -5px;
-  border-color: hsl(var(--primary) / 0.35);
-  box-shadow: 0 24px 46px -24px hsl(var(--foreground) / 0.4);
-}
 .float-field input:focus + label,
 .float-field input:not(:placeholder-shown) + label,
 .float-field input:-webkit-autofill + label {
   transform: translateY(-10px) scale(0.76);
-  color: hsl(var(--primary));
+  color: var(--primary);
 }
 .float-field input:focus {
-  border-color: hsl(var(--primary));
-  background-color: hsl(var(--card));
-  box-shadow: 0 0 0 4px hsl(var(--primary) / 0.14);
+  border-color: var(--primary);
+  background-color: var(--card);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 14%, transparent);
 }
 .task-title[data-done="true"] {
   background-size: 100% 1.5px;
-  color: hsl(var(--muted-foreground));
+  color: var(--muted-foreground);
 }
 
 /* Completing a task: a ring and a burst of dots spread from the tick, and the row glows green for a moment.
@@ -346,7 +442,7 @@ a:active {
 /* The ring. */
 .task-burst::before {
   inset: 0;
-  border: 2px solid hsl(var(--primary));
+  border: 2px solid var(--primary);
   animation: burst-ring 0.45s var(--ease-out) both;
 }
 /* Eight dots, drawn as shadows of one tiny dot at the centre, flying outwards. */
@@ -363,14 +459,14 @@ a:active {
 .avatar-button:hover,
 .avatar-button[aria-expanded="true"] {
   scale: 1.1;
-  box-shadow: 0 0 0 4px hsl(var(--primary) / 0.16), 0 10px 20px -10px hsl(var(--primary) / 0.6);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 16%, transparent), 0 10px 20px -10px color-mix(in srgb, var(--primary) 60%, transparent);
 }
 .profile-chip { transition: background-color 0.3s, translate 0.3s var(--ease-out); }
-.profile-chip:hover { background-color: hsl(var(--muted) / 0.8); }
+.profile-chip:hover { background-color: color-mix(in srgb, var(--muted) 80%, transparent); }
 .profile-chip .profile-chip-avatar { border-radius: 9999px; transition: scale 0.35s var(--ease-spring), box-shadow 0.3s var(--ease-out); }
 .profile-chip:hover .profile-chip-avatar {
   scale: 1.1;
-  box-shadow: 0 0 0 4px hsl(var(--primary) / 0.16), 0 10px 20px -10px hsl(var(--primary) / 0.6);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 16%, transparent), 0 10px 20px -10px color-mix(in srgb, var(--primary) 60%, transparent);
 }
 .profile-chip .profile-chip-cog { opacity: 0; translate: -4px 0; transition: opacity 0.3s, translate 0.3s var(--ease-out), rotate 0.6s var(--ease-out); }
 .profile-chip:hover .profile-chip-cog,
@@ -382,13 +478,13 @@ a:active {
 }
 .bottom-nav-item:hover .bottom-nav-icon {
   translate: 0 -2px;
-  background-color: hsl(var(--primary) / 0.08);
+  background-color: color-mix(in srgb, var(--primary) 8%, transparent);
 }
 .bottom-nav-item:active .bottom-nav-icon {
   scale: 0.86;
 }
 .bottom-nav-item[aria-current="page"] .bottom-nav-icon {
-  background-color: hsl(var(--primary) / 0.12);
+  background-color: color-mix(in srgb, var(--primary) 12%, transparent);
 }
 .bottom-nav-bar {
   transition: translate 0.45s var(--ease-out);
@@ -415,18 +511,6 @@ a:active {
 /* The highlight behind the chosen option of a switch slides across. */
 .segment-thumb { transition: translate 0.4s var(--ease-out); }
 
-/* Sign-in page: slow washes of colour drifting behind the card. */
-.login-blob {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(70px);
-  pointer-events: none;
-  animation: blob-in 1.6s ease both, drift-a 22s ease-in-out infinite alternate;
-}
-.login-blob.one { width: 32rem; height: 32rem; right: -9rem; top: -10rem; background: hsl(var(--primary) / 0.22); }
-.login-blob.two { width: 29rem; height: 29rem; left: -10rem; bottom: -10rem; background: hsl(var(--accent-foreground) / 0.16); animation-name: blob-in, drift-b; animation-duration: 1.6s, 26s; }
-.login-blob.three { width: 22rem; height: 22rem; left: 34%; top: -11rem; background: hsl(var(--secondary-foreground) / 0.13); animation-duration: 1.6s, 30s; animation-direction: normal, alternate-reverse; }
-
 /* Sign-in page: the heading, the card and the footer arrive in order. */
 .enter-rise {
   animation: rise 0.7s var(--ease-out) both;
@@ -448,19 +532,15 @@ a:active {
   animation: shake 0.45s var(--ease-out);
 }
 
-/* The app builds itself when it first appears: menu from the side, bar from the top, page from below. */
-.app-enter-side { animation: side-in 0.8s var(--ease-out) both; }
+/* The app builds itself when it first appears: the menu from the top, then the page from below. */
 .app-enter-top { animation: top-in 0.7s var(--ease-out) 0.08s both; }
 .app-enter-main { animation: rise 0.8s var(--ease-out) 0.16s both; }
 
 @keyframes spin { to { transform: rotate(360deg); } }
-@keyframes blob-in { from { opacity: 0; } }
-@keyframes drift-a { to { transform: translate(-60px, 50px) scale(1.12); } }
-@keyframes drift-b { to { transform: translate(70px, -40px) scale(1.08); } }
 @keyframes row-done {
-  0% { background-color: hsl(var(--primary) / 0); }
-  25% { background-color: hsl(var(--primary) / 0.16); }
-  100% { background-color: hsl(var(--primary) / 0); }
+  0% { background-color: color-mix(in srgb, var(--primary) 0%, transparent); }
+  25% { background-color: color-mix(in srgb, var(--primary) 16%, transparent); }
+  100% { background-color: color-mix(in srgb, var(--primary) 0%, transparent); }
 }
 @keyframes row-slide {
   0% { transform: translateX(0); opacity: 1; }
@@ -485,20 +565,19 @@ a:active {
   from {
     opacity: 1;
     box-shadow:
-      0 0 hsl(var(--primary)), 0 0 hsl(var(--secondary-foreground)), 0 0 hsl(var(--accent-foreground)), 0 0 hsl(var(--primary)),
-      0 0 hsl(var(--secondary-foreground)), 0 0 hsl(var(--accent-foreground)), 0 0 hsl(var(--primary)), 0 0 hsl(var(--secondary-foreground));
+      0 0 var(--primary), 0 0 var(--secondary-foreground), 0 0 var(--accent-foreground), 0 0 var(--primary),
+      0 0 var(--secondary-foreground), 0 0 var(--accent-foreground), 0 0 var(--primary), 0 0 var(--secondary-foreground);
   }
   to {
     opacity: 0;
     box-shadow:
-      0 -22px hsl(var(--primary)), 16px -16px hsl(var(--secondary-foreground)), 22px 0 hsl(var(--accent-foreground)), 16px 16px hsl(var(--primary)),
-      0 22px hsl(var(--secondary-foreground)), -16px 16px hsl(var(--accent-foreground)), -22px 0 hsl(var(--primary)), -16px -16px hsl(var(--secondary-foreground));
+      0 -22px var(--primary), 16px -16px var(--secondary-foreground), 22px 0 var(--accent-foreground), 16px 16px var(--primary),
+      0 22px var(--secondary-foreground), -16px 16px var(--accent-foreground), -22px 0 var(--primary), -16px -16px var(--secondary-foreground);
   }
 }
 @keyframes rise { from { opacity: 0; translate: 0 14px; } }
 @keyframes pop-in { from { opacity: 0; scale: 0.94; translate: 0 -6px; } }
 @keyframes card-in { from { opacity: 0; translate: 0 24px; scale: 0.97; filter: blur(6px); } }
-@keyframes side-in { from { opacity: 0; translate: -18px 0; } }
 @keyframes top-in { from { opacity: 0; translate: 0 -14px; } }
 @keyframes shake {
   20% { translate: -9px 0; }
@@ -531,24 +610,286 @@ a:active {
   }
 }
 
-.sidebar {
-  background-color: hsl(var(--sidebar) / 0.88);
-  backdrop-filter: blur(12px);
-}
-
 .custom-scrollbar::-webkit-scrollbar {
   width: 5px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: hsl(var(--foreground) / 0.03);
+  background: color-mix(in srgb, var(--foreground) 3%, transparent);
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: hsl(var(--foreground) / 0.16);
+  background: color-mix(in srgb, var(--foreground) 16%, transparent);
   border-radius: 999px;
 }
 
 ::selection {
-  background: hsl(var(--primary) / 0.18);
+  background: color-mix(in srgb, var(--primary) 18%, transparent);
 }
+/* ── The family journal look ─────────────────────────────────────────────── */
+
+h1, h2, h3 { letter-spacing: -0.01em; }
+.font-display { font-optical-sizing: auto; }
+
+/* Cards and tiles share one soft, warm shadow, and a deeper one when lifted. */
+.shadow-soft { box-shadow: var(--shadow-soft); }
+
+/* Dialogs rise gently over a blurred page, with the journal's rounder corners. Unlayered, so it wins over the
+   rounded-xl that each dialog also carries. */
+dialog[open] {
+  border-radius: 28px;
+  box-shadow: 0 40px 80px -30px rgba(0, 0, 0, 0.55);
+  animation: dialog-pop 0.45s var(--ease-out) both;
+}
+dialog::backdrop { background: rgba(30, 22, 15, 0.38); backdrop-filter: blur(4px); }
+@keyframes dialog-pop { from { opacity: 0; translate: 0 18px; scale: 0.97; } }
+
+/* Fields: rounder, and they glow clay when focused. */
+/* In :where(), so any field that styles itself (such as the ask bar) wins without a fight. */
+:where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), textarea, select) { border-radius: 14px; }
+:where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), textarea, select):focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 14%, transparent);
+}
+
+/* ── Top menu ── */
+.top-nav-link { position: relative; }
+/* One underline glides to whichever page is pointed at, and rests under the current one. */
+.top-nav-bar { transition: translate 0.45s var(--ease-out), width 0.45s var(--ease-out), opacity 0.3s; }
+.ask-pill { width: 42px; transition: border-color 0.25s, box-shadow 0.3s, translate 0.3s var(--ease-out), width 0.45s var(--ease-out); box-shadow: var(--shadow-soft); }
+@media (min-width: 640px) { .ask-pill { width: 210px; } .ask-pill.ask-pill-open { width: 280px; } }
+@media (min-width: 1280px) { .ask-pill, .ask-pill.ask-pill-open { width: 250px; } }
+@media (min-width: 1536px) { .ask-pill.ask-pill-open { width: 380px; } }
+.ask-pill-open { border-color: color-mix(in srgb, var(--primary) 50%, transparent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 14%, transparent), var(--shadow-soft); }
+.ask-pill .ask-input, .ask-pill .ask-input:focus { border: 0; border-radius: 0; box-shadow: none; padding: 0; }
+/* The assistant's messages rise into place, and three dots bounce while it thinks. */
+.ask-bubble { animation: rise 0.4s var(--ease-out) both; }
+.thinking-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted-foreground); animation: thinking 1.1s ease-in-out infinite; }
+.thinking-dot:nth-child(3) { animation-delay: 0.15s; }
+.thinking-dot:nth-child(4) { animation-delay: 0.3s; }
+@keyframes thinking { 0%, 60%, 100% { translate: 0 0; opacity: 0.45; } 30% { translate: 0 -5px; opacity: 1; } }
+.ask-pill:hover:not(.ask-pill-open) {
+  border-color: color-mix(in srgb, var(--primary) 45%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 14%, transparent), var(--shadow-soft);
+  translate: 0 -1px;
+}
+.round-button { transition: scale 0.35s var(--ease-spring), box-shadow 0.3s, background-color 0.25s, color 0.25s; }
+.round-button:hover, .round-button[aria-expanded="true"] { scale: 1.08; box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 15%, transparent); }
+.theme-icon { transition: rotate 0.6s var(--ease-spring), scale 0.4s var(--ease-spring); }
+.round-button:hover .theme-icon { rotate: -25deg; }
+
+/* ── The illustrated header at the top of every page (scene-banner.tsx, hero-scene.tsx) ── */
+.scene-banner {
+  position: relative;
+  overflow: hidden;
+  border-radius: 30px;
+  background: linear-gradient(180deg, var(--scene-top), var(--scene-bottom));
+  box-shadow: var(--shadow-soft);
+  animation: rise 0.9s var(--ease-out) both;
+  transition: height 0.7s var(--ease-out);
+}
+.scene-banner h1 em { font-style: italic; font-weight: 500; color: var(--primary); }
+/* A new page's title rises into place as the picture glides to its scene. */
+.banner-content { animation: banner-in 0.75s var(--ease-out) 0.15s both; }
+@keyframes banner-in { from { opacity: 0; translate: 0 10px; } }
+/* The sun by day and the moon by night. Switching to dark, the sun sinks behind the hills while the sky darkens and
+   the moon rises a moment later; switching back, the moon sets and the sun comes up. The setting and rising use
+   transform, apart from the gentle float, which uses translate. */
+.hero-sun {
+  --orb: #f6a945;
+  position: absolute;
+  right: 10%;
+  top: 30px;
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  background: var(--orb);
+  box-shadow: 0 0 0 18px color-mix(in srgb, var(--orb) 25%, transparent), 0 0 0 40px color-mix(in srgb, var(--orb) 12%, transparent);
+  animation: sun-float 6s ease-in-out infinite alternate;
+  transition: transform 1.3s cubic-bezier(0.45, 0, 0.25, 1), opacity 1.3s ease;
+}
+.hero-sun.moon {
+  --orb: #f6e3a8;
+  /* A few soft craters. */
+  background:
+    radial-gradient(circle at 34% 38%, rgba(200, 180, 130, 0.45) 0 9%, transparent 10%),
+    radial-gradient(circle at 62% 64%, rgba(200, 180, 130, 0.4) 0 7%, transparent 8%),
+    radial-gradient(circle at 66% 30%, rgba(200, 180, 130, 0.35) 0 5%, transparent 6%),
+    var(--orb);
+}
+/* Down behind the hills: the sun sets to the right, the moon rises from the left. */
+.hero-sun.moon, :root[data-theme="dark"] .hero-sun.sun { opacity: 0.7; }
+.hero-sun.moon { transform: translate(-70px, 340px); }
+.hero-sun.sun { transform: none; opacity: 1; transition-delay: 0.35s; }
+:root[data-theme="dark"] .hero-sun.sun { transform: translate(70px, 340px); transition-delay: 0s; }
+:root[data-theme="dark"] .hero-sun.moon { transform: none; opacity: 1; transition-delay: 0.35s; }
+@keyframes sun-float { to { translate: 0 10px; } }
+@media (max-width: 640px) {
+  .hero-sun { width: 52px; height: 52px; right: 18px; top: 18px; box-shadow: 0 0 0 10px color-mix(in srgb, var(--orb) 25%, transparent), 0 0 0 22px color-mix(in srgb, var(--orb) 12%, transparent); }
+}
+
+/* The living countryside along the top of every page (see hero-scene.tsx). */
+.scene-root { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+/* Each layer is pinned at the focus point, two thirds across, and slides so the current page's place sits on it. */
+.scene-anchor { position: absolute; left: 68%; bottom: 0; }
+.scene-anchor.scene-far { bottom: 18px; }
+@media (max-width: 640px) { .scene-anchor { left: 56%; } }
+/* The drone camera (hero-scene.tsx): the outer layer rises and falls about the focus point; the inner one slides along. */
+.scene-lift { width: max-content; transform-origin: 0 100%; will-change: transform; }
+.scene-camera { width: max-content; will-change: transform; }
+
+.scene-hand-minute, .scene-hand-hour { transform-box: fill-box; transform-origin: 50% 100%; animation: clock-turn 12s linear infinite; }
+.scene-hand-hour { animation-duration: 144s; }
+@keyframes clock-turn { to { rotate: 360deg; } }
+.scene-flap-note { transform-box: fill-box; transform-origin: 50% 0; animation: sway 3s ease-in-out infinite alternate; }
+
+.scene-sway { transform-box: fill-box; transform-origin: 50% 100%; animation: sway 5s ease-in-out infinite alternate; }
+@keyframes sway { from { rotate: -2.5deg; } to { rotate: 2.5deg; } }
+.scene-swing { transform-box: fill-box; transform-origin: 50% 0; animation: sway 2.6s ease-in-out infinite alternate; }
+.scene-bob { animation: bob 2.4s ease-in-out infinite alternate; }
+@keyframes bob { to { translate: 0 2px; } }
+.scene-flutter { animation: flutter 4s ease-in-out infinite alternate; }
+@keyframes flutter { 33% { translate: 8px -6px; } 66% { translate: -4px -10px; } to { translate: 12px 2px; } }
+.scene-wings { transform-box: fill-box; transform-origin: 50% 50%; animation: wings 0.25s ease-in-out infinite alternate; }
+@keyframes wings { to { scale: 0.25 1; } }
+.scene-tail { transform-box: fill-box; transform-origin: 0 100%; animation: sway 1.6s ease-in-out infinite alternate; }
+.scene-hop { animation: hop 1.8s var(--ease-out) infinite; }
+@keyframes hop { 0%, 55%, 100% { translate: 0 0; } 70% { translate: 0 -9px; } 85% { translate: 0 0; } }
+.scene-smoke circle { fill: color-mix(in srgb, var(--card) 80%, transparent); animation: smoke 4.5s ease-out infinite; }
+.scene-smoke circle:nth-child(2) { animation-delay: 1.5s; }
+.scene-smoke circle:nth-child(3) { animation-delay: 3s; }
+@keyframes smoke { from { translate: 0 0; scale: 0.6; opacity: 0.9; } to { translate: 10px -26px; scale: 2.2; opacity: 0; } }
+.scene-window { fill: color-mix(in srgb, var(--sky) 70%, white); transition: fill 0.6s; }
+.scene-lamp { fill: var(--card); transition: fill 0.6s, filter 0.6s; }
+
+/* Birds and clouds cross the whole picture: each sits in a full-width strip that slides from just off one edge to
+   just off the other. */
+.scene-bird, .scene-cloud { position: absolute; left: 0; right: 0; animation: cross-sky linear infinite; }
+.scene-bird svg, .scene-cloud svg { display: block; }
+.scene-bird { color: #5a4636; transition: opacity 0.6s; }
+.scene-cloud { color: rgba(255, 255, 255, 0.85); transition: color 0.6s; }
+@keyframes cross-sky { from { transform: translateX(-12%); } to { transform: translateX(105%); } }
+.scene-bird-bob { display: block; width: max-content; animation: bird-bob 3s ease-in-out infinite alternate; }
+@keyframes bird-bob { to { translate: 0 10px; } }
+.scene-flap { transform-box: fill-box; transform-origin: 50% 80%; animation: flap 0.45s ease-in-out infinite alternate; }
+@keyframes flap { to { scale: 1 -0.6; } }
+
+/* The characters at each place (hero-scene.tsx). Walking along the ground and turning round is done in the script,
+   so feet follow the hills; arms, legs and small gestures are here. SVG parts turn about their own feet or joints. */
+/* Arms and legs turn about the shoulder or hip. Walker swings them in step, and only while walking. */
+.scene-limb { transform-box: fill-box; transform-origin: 50% 0; }
+.scene-shadow { fill: rgba(30, 40, 25, 0.22); }
+.scene-dog-tail { transform-box: fill-box; transform-origin: 100% 100%; animation: sway 0.3s ease-in-out infinite alternate; }
+/* Waiting for the bus: a tapping foot, and a look at the watch every so often. */
+.scene-tap { transform-box: fill-box; transform-origin: 50% 0; animation: tap 1.4s ease-in-out infinite; }
+@keyframes tap { 0%, 60%, 100% { rotate: 0deg; } 70%, 90% { rotate: -14deg; } 80% { rotate: -4deg; } }
+.scene-watch { transform-box: fill-box; transform-origin: 50% 0; animation: watch 6s ease-in-out infinite; }
+@keyframes watch { 0%, 55%, 100% { rotate: 0deg; } 62%, 85% { rotate: -110deg; } }
+/* Grandma and the reader nod along on their benches. */
+.scene-nod { transform-box: fill-box; transform-origin: 50% 100%; animation: nod 3.2s ease-in-out infinite; }
+@keyframes nod { 0%, 70%, 100% { rotate: 0deg; } 80% { rotate: 8deg; } 90% { rotate: -2deg; } }
+/* The kite swings on its string about the child's raised hand; its tail ripples. */
+.scene-kite { transform-origin: 16px -29px; animation: kite 4s ease-in-out infinite alternate; }
+@keyframes kite { from { rotate: -7deg; } to { rotate: 6deg; } }
+.scene-kite-tail { transform-box: fill-box; transform-origin: 50% 0; animation: sway 0.9s ease-in-out infinite alternate; }
+/* A page of the book turns over now and then. */
+.scene-page { transform-origin: 9px -26px; animation: page-turn 7s ease-in-out infinite; }
+@keyframes page-turn { 0%, 80% { scale: 1 1; } 90%, 100% { scale: -1 1; } }
+
+/* Night: stars, a shooting star now and then, fireflies, warm windows and a lit lamp. Birds go to roost. */
+.scene-stars, .scene-shooting-star, .scene-fireflies { position: absolute; opacity: 0; transition: opacity 0.8s; }
+.scene-stars {
+  inset: 0 0 40% 0;
+  background-image:
+    radial-gradient(1.5px 1.5px at 8% 20%, #fff, transparent), radial-gradient(1px 1px at 18% 55%, #fff, transparent),
+    radial-gradient(1.5px 1.5px at 30% 12%, #fff, transparent), radial-gradient(1px 1px at 42% 38%, #fff, transparent),
+    radial-gradient(1.5px 1.5px at 55% 18%, #fff, transparent), radial-gradient(1px 1px at 63% 48%, #fff, transparent),
+    radial-gradient(1px 1px at 72% 8%, #fff, transparent), radial-gradient(1.5px 1.5px at 92% 42%, #fff, transparent),
+    radial-gradient(1px 1px at 97% 14%, #fff, transparent), radial-gradient(1px 1px at 48% 62%, #fff, transparent);
+  animation: twinkle 3.5s ease-in-out infinite alternate;
+}
+@keyframes twinkle { from { filter: brightness(0.6); } to { filter: brightness(1.3); } }
+.scene-shooting-star { top: 12%; left: 20%; width: 90px; height: 2px; border-radius: 2px; background: linear-gradient(90deg, transparent, #fff); rotate: 16deg; }
+:root[data-theme="dark"] .scene-shooting-star { animation: shooting-star 9s ease-in infinite 2s; }
+@keyframes shooting-star { 0%, 88% { opacity: 0; translate: 0 0; } 90% { opacity: 1; } 100% { opacity: 0; translate: 260px 75px; } }
+.scene-fireflies {
+  inset: auto 0 20px 0; height: 70px;
+  background-image:
+    radial-gradient(2.5px 2.5px at 12% 40%, #fbe7a1, transparent), radial-gradient(2px 2px at 27% 70%, #fbe7a1, transparent),
+    radial-gradient(2.5px 2.5px at 52% 30%, #fbe7a1, transparent), radial-gradient(2px 2px at 68% 65%, #fbe7a1, transparent),
+    radial-gradient(2.5px 2.5px at 86% 45%, #fbe7a1, transparent);
+  animation: fireflies 6s ease-in-out infinite alternate;
+}
+@keyframes fireflies { 50% { translate: 12px -8px; filter: brightness(1.6); } to { translate: -6px 4px; filter: brightness(0.7); } }
+:root[data-theme="dark"] .scene-stars, :root[data-theme="dark"] .scene-fireflies { opacity: 1; }
+:root[data-theme="dark"] .scene-bird { opacity: 0; }
+:root[data-theme="dark"] .scene-cloud { color: rgba(255, 255, 255, 0.07); }
+:root[data-theme="dark"] .scene-window { fill: #f6cf6b; }
+:root[data-theme="dark"] .scene-lamp { fill: #fbe7a1; filter: drop-shadow(0 0 6px #f6cf6b); }
+:root[data-theme="dark"] .scene-flutter { opacity: 0; }
+
+.hero-chip { background: color-mix(in srgb, var(--card) 85%, transparent); backdrop-filter: blur(6px); box-shadow: 0 8px 18px -12px rgba(0, 0, 0, 0.45); transition: translate 0.3s var(--ease-out), box-shadow 0.3s; }
+.hero-chip:hover { translate: 0 -2px; box-shadow: 0 14px 26px -14px rgba(0, 0, 0, 0.5); }
+
+/* Summary tiles: a tinted icon in the tile's own colour, and a border of that colour when lifted. */
+.summary-tile { box-shadow: var(--shadow-soft); transition: translate 0.4s var(--ease-out), box-shadow 0.4s var(--ease-out), border-color 0.4s; }
+.summary-tile:hover { translate: 0 -5px; box-shadow: var(--shadow-lift); border-color: color-mix(in srgb, var(--tile) 45%, var(--border)); }
+.summary-tile .tile-icon { background: color-mix(in srgb, var(--tile) 18%, var(--card)); color: var(--tile); }
+
+/* The order for today: numbered steps in a warm gradient. */
+.plan-step-number { background: linear-gradient(135deg, var(--primary), var(--mustard)); box-shadow: 0 6px 14px -8px var(--primary); }
+.refresh-button { transition: rotate 0.5s var(--ease-out), color 0.2s, background-color 0.2s; }
+.refresh-button:not(:disabled):hover { rotate: 180deg; }
+
+/* ── Today: everyone's day on one timeline ── */
+.day-track {
+  background-color: var(--muted);
+  background-image: repeating-linear-gradient(90deg, var(--grid-line) 0 1px, transparent 1px calc(100% / var(--hours, 15)));
+}
+.day-block { transform-origin: left; animation: stretch 0.8s var(--ease-out) both; }
+.day-block.busy { background: color-mix(in srgb, var(--person) 12%, transparent); border: 1.5px dashed color-mix(in srgb, var(--person) 55%, transparent); }
+.day-block.task { background: var(--person); color: #fff; box-shadow: 0 6px 14px -8px var(--person); }
+.day-block.task.late { box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--alert); }
+@keyframes stretch { from { transform: scaleX(0); opacity: 0; } }
+.now-line::before { content: ""; position: absolute; top: -4px; left: -4px; width: 10px; height: 10px; border-radius: 50%; background: var(--primary); animation: now-pulse 1.8s ease-in-out infinite; }
+@keyframes now-pulse { 50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--primary) 25%, transparent); } }
+
+/* ── The family: a ring around each face fills with their open tasks ── */
+.load-ring {
+  background: conic-gradient(var(--person) calc(var(--load) * 1%), var(--muted) 0);
+  transition: scale 0.4s var(--ease-spring), rotate 0.4s var(--ease-spring);
+  animation: ring-in 1s var(--ease-out) both;
+}
+.family-face:hover .load-ring { scale: 1.08; rotate: -4deg; }
+.load-ring > * { background: color-mix(in srgb, var(--person) 20%, var(--card)); color: var(--person); }
+@keyframes ring-in { from { rotate: -90deg; scale: 0.8; opacity: 0; } }
+
+/* ── Knowledge: notes pinned to a board, tilted a little, straightening when pointed at ── */
+.pinned-note {
+  --tilt: 0deg;
+  background: color-mix(in srgb, var(--note) 16%, var(--card));
+  border: 1px solid color-mix(in srgb, var(--note) 30%, transparent);
+  box-shadow: var(--shadow-soft);
+  rotate: var(--tilt);
+  transition: rotate 0.4s var(--ease-spring), translate 0.4s var(--ease-spring), box-shadow 0.4s;
+  animation: note-drop 0.7s var(--ease-out) both;
+}
+.pinned-note:hover, .pinned-note:focus-within { rotate: 0deg; translate: 0 -4px; box-shadow: var(--shadow-lift); }
+.pinned-note::before { content: ""; position: absolute; top: -9px; left: 50%; width: 18px; height: 18px; margin-left: -9px; border-radius: 50%; background: var(--note); box-shadow: 0 4px 8px -2px rgba(0, 0, 0, 0.35); }
+@keyframes note-drop { from { opacity: 0; translate: 0 -16px; rotate: calc(var(--tilt) * 3); } }
+
+/* ── Activity: the day told as a journal, a dashed line down the side ── */
+.journal-entries::before { content: ""; position: absolute; left: 9px; top: 8px; bottom: 8px; width: 2px; background: repeating-linear-gradient(var(--border) 0 6px, transparent 6px 12px); }
+/* The hover nudge uses transform, apart from the entrance animation's translate, so the two never hold each other up. */
+.journal-entry { box-shadow: var(--shadow-soft); transition: transform 0.4s var(--ease-out), box-shadow 0.4s var(--ease-out); }
+.journal-entry:hover { transform: translateX(4px); box-shadow: var(--shadow-lift); }
+.journal-entry::before { content: ""; position: absolute; left: -24px; top: 50%; width: 12px; height: 12px; margin-top: -6px; border-radius: 50%; background: var(--person); box-shadow: 0 0 0 4px var(--background); }
+
+/* ── Sign in: the sky as a welcome ── */
+.welcome-scene { background: linear-gradient(180deg, var(--scene-top), var(--scene-bottom)); }
+.welcome-sun {
+  position: absolute; right: 16%; top: 14%; width: 120px; height: 120px; border-radius: 50%; background: var(--sun);
+  box-shadow: 0 0 0 26px color-mix(in srgb, var(--sun) 25%, transparent), 0 0 0 56px color-mix(in srgb, var(--sun) 12%, transparent);
+  animation: sun-float 7s ease-in-out infinite alternate;
+}
+.brand-mark { background: linear-gradient(160deg, var(--scene-top), var(--scene-bottom)); box-shadow: inset 0 -9px 0 var(--hill-1); }

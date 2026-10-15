@@ -4,9 +4,9 @@ import {
   BookOpen,
   CalendarRange,
   ClipboardList,
-  HeartPulse,
   Home,
-  Settings,
+  Moon,
+  Sun,
   UsersRound,
 } from "lucide-react";
 import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from "react-router-dom";
@@ -17,7 +17,9 @@ import { FamilyAvatar } from "@/components/family-avatar";
 import { CalendarPage } from "@/pages/calendar-page";
 import { NotificationsMenu, ProfileMenu } from "@/components/header-menus";
 import { ProfileSettingsDialog } from "@/components/profile-settings-dialog";
-import { SidebarNav } from "@/components/sidebar-nav";
+import { TopNav } from "@/components/top-nav";
+import { AskBar } from "@/components/ask-bar";
+import { SceneBanner } from "@/components/scene-banner";
 import { useCareData } from "@/hooks/use-care-data";
 import { buildNotifications, useDismissibleNotifications } from "@/lib/notifications";
 import { KnowledgePage } from "@/pages/knowledge-page";
@@ -82,6 +84,7 @@ function AppShell() {
 
 function CareApp({ currentUser, onUserUpdated, onSignOut }: { currentUser: AuthUser; onUserUpdated: (user: AuthUser) => void; onSignOut: () => void }) {
   const care = useCareData();
+  const location = useLocation();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const notifications = useDismissibleNotifications(buildNotifications(care.tasks, currentUser.id), currentUser.id);
   const family = care.family;
@@ -122,93 +125,110 @@ function CareApp({ currentUser, onUserUpdated, onSignOut }: { currentUser: AuthU
   }
 
   const me = care.members.find((member) => member.id === currentUser.id);
+  // Each page has its own place in the header picture, in the menu's order; anything unknown shows the overview.
+  const sceneIndex = Math.max(0, navigation.findIndex(({ to, end }) => (end ? location.pathname === to : location.pathname.startsWith(to))));
   const overview = <OverviewPage care={care} currentUser={currentUser} onUserUpdated={onUserUpdated} />;
 
   const userInitials = currentUser.name.trim().split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase() || "U";
-  // One avatar for the signed-in user, used in both the sidebar and the header.
+  // The signed-in user's picture, for the account menu in the top bar.
   const renderMyAvatar = (className?: string) => (
     <FamilyAvatar initials={me?.initials ?? userInitials} tone={me?.tone} imageUrl={currentUser.avatar_url} className={className} />
   );
 
   return (
     <div className="app-backdrop min-h-screen text-foreground">
-      <aside className="sidebar app-enter-side fixed inset-y-0 left-0 z-10 hidden w-64 flex-col border-r border-border/70 px-5 py-7 md:flex">
-        <Link to="/" aria-label={`${familyName} home`} className="flex min-w-0 items-center gap-3 px-2">
-          <span className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-md shadow-primary/20">
-            <HeartPulse size={21} aria-hidden="true" />
-          </span>
-          <span className="min-w-0 truncate font-sans text-[17px] font-bold leading-[1.15]">{familyName}</span>
-        </Link>
-
-        <div className="mt-8 px-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-          Care space
-        </div>
-        <SidebarNav items={navigation} />
-
-        <div className="mt-auto border-t border-border pt-3">
-          {/* Opens profile settings, the same as the picture in the top bar. */}
-          <button type="button" onClick={() => setIsProfileOpen(true)} aria-label={`Profile settings for ${currentUser.name}`} className="profile-chip flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            <span className="profile-chip-avatar flex shrink-0">{renderMyAvatar()}</span>
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-semibold">{currentUser.name}</span>
-              <span className="block text-xs text-muted-foreground">{me?.role ?? "Family member"}</span>
-            </span>
-            <Settings size={16} aria-hidden="true" className="profile-chip-cog shrink-0 text-muted-foreground" />
-          </button>
-        </div>
-      </aside>
-
-      <div className="md:pl-64">
-        <header className="app-enter-top relative z-20 flex h-[72px] items-center justify-between border-b border-border/60 bg-white/55 px-5 shadow-sm shadow-foreground/[0.02] backdrop-blur-md md:justify-end md:px-8">
-          <div className="flex min-w-0 items-center gap-2 md:hidden">
-            <HeartPulse size={20} className="text-primary" aria-hidden="true" />
-            <div className="min-w-0">
-              <span className="block truncate text-sm font-semibold">{familyName}</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
+      <header className="app-enter-top sticky top-0 z-20 bg-background/85 backdrop-blur-md">
+        <div className="mx-auto flex h-[76px] max-w-[1200px] items-center gap-4 px-5 md:px-8 lg:gap-6">
+          <Link to="/" aria-label={`${familyName} home`} className="flex min-w-[2.75rem] shrink items-center gap-2.5 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <span aria-hidden="true" className="brand-mark grid size-9 shrink-0 place-items-center rounded-xl text-base xl:hidden">☀</span>
+            <FamilyName name={familyName ?? ""} />
+          </Link>
+          <TopNav items={navigation} />
+          <span className="flex-1" />
+          <div className="flex shrink-0 items-center gap-2.5">
+            <AskBar tasks={care.tasks} />
+            <ThemeButton />
             <NotificationsMenu notifications={notifications.visible} onDismiss={notifications.dismiss} onDismissAll={notifications.dismissAll} />
             <ProfileMenu
               name={currentUser.name}
               email={currentUser.email}
-              avatar={renderMyAvatar()}
+              avatar={renderMyAvatar("size-[42px] text-[13px]")}
               onOpenSettings={() => setIsProfileOpen(true)}
               onSignOut={onSignOut}
             />
           </div>
-        </header>
-        <main className="app-enter-main custom-scrollbar mx-auto h-[calc(100vh-72px)] max-w-7xl overflow-y-auto overflow-x-hidden px-5 py-6 pb-24 md:px-8 md:py-8">
-          {care.actionError && (
-            <div role="alert" className="mb-5 flex items-start justify-between gap-3 rounded-lg bg-alert/10 px-4 py-3 text-sm text-alert">
-              <span>{care.actionError}</span>
-              <button type="button" onClick={care.clearActionError} className="shrink-0 font-semibold link-underline">Dismiss</button>
-            </div>
-          )}
-          <Routes>
-            <Route path="/" element={overview} />
-            <Route path="/tasks" element={<CarePlanPage care={care} currentUser={currentUser} />} />
-            <Route path="/calendar" element={<CalendarPage members={care.members} tasks={care.tasks} />} />
-            <Route path="/circle" element={<CareCirclePage care={care} family={family} currentUser={currentUser} />} />
-            <Route path="/knowledge" element={<KnowledgePage />} />
-            <Route path="/activity" element={<ActivityPage care={care} />} />
-            <Route path="*" element={overview} />
-          </Routes>
-        </main>
-        {isProfileOpen && (
-          <ProfileSettingsDialog
-            currentUser={currentUser}
-            member={me}
-            onClose={() => setIsProfileOpen(false)}
-            onSaved={async (user) => {
-              onUserUpdated(user);
-              // Refresh the member list so the new name and picture show everywhere.
-              await care.reload();
-            }}
-          />
+        </div>
+      </header>
+      <main className="app-enter-main mx-auto max-w-[1200px] px-5 pt-2 pb-32 md:px-8 lg:pb-24">
+        {care.actionError && (
+          <div role="alert" className="mb-5 flex items-start justify-between gap-3 rounded-2xl bg-alert/10 px-4 py-3 text-sm text-alert">
+            <span>{care.actionError}</span>
+            <button type="button" onClick={care.clearActionError} className="shrink-0 font-semibold link-underline">Dismiss</button>
+          </div>
         )}
-      </div>
+        <SceneBanner sceneIndex={sceneIndex}>
+        <Routes>
+          <Route path="/" element={overview} />
+          <Route path="/tasks" element={<CarePlanPage care={care} currentUser={currentUser} />} />
+          <Route path="/calendar" element={<CalendarPage care={care} />} />
+          <Route path="/circle" element={<CareCirclePage care={care} family={family} currentUser={currentUser} />} />
+          <Route path="/knowledge" element={<KnowledgePage />} />
+          <Route path="/activity" element={<ActivityPage care={care} />} />
+          <Route path="*" element={overview} />
+        </Routes>
+        </SceneBanner>
+      </main>
+      {isProfileOpen && (
+        <ProfileSettingsDialog
+          currentUser={currentUser}
+          member={me}
+          onClose={() => setIsProfileOpen(false)}
+          onSaved={async (user) => {
+            onUserUpdated(user);
+            // Refresh the member list so the new name and picture show everywhere.
+            await care.reload();
+          }}
+        />
+      )}
       <BottomNav />
     </div>
+  );
+}
+
+/** The family's name in the journal's serif, with its main word in clay, e.g. "the *Suanni* family". */
+function FamilyName({ name }: { name: string }) {
+  const words = name.trim().split(/\s+/);
+  // The first word that is not a small one like "the" is the family's own name.
+  const accent = words.findIndex((word) => !/^(the|a|an|of|and|&)$/i.test(word));
+  return (
+    <span className="truncate font-display text-[19px] font-bold leading-tight lg:text-xl">
+      {words.map((word, index) => (
+        <span key={`${word}-${index}`} className={index === accent ? "text-primary" : undefined}>{index > 0 ? " " : ""}{word}</span>
+      ))}
+    </span>
+  );
+}
+
+/** Switches between the daytime and evening looks. Remembered in this browser; until then it follows the device. */
+function ThemeButton() {
+  const [theme, setTheme] = useState(() => document.documentElement.dataset.theme === "dark" ? "dark" : "light");
+  const next = theme === "dark" ? "light" : "dark";
+  // Every colour fades to the new look on its own (see the @property rules in index.css), with everything still moving.
+  const choose = () => {
+    document.documentElement.dataset.theme = next;
+    try { window.localStorage.setItem("lodge-theme", next); } catch { /* not remembered */ }
+    setTheme(next);
+  };
+  return (
+    <button
+      type="button"
+      onClick={choose}
+      aria-label={next === "dark" ? "Switch to dark mode" : "Switch to light mode"}
+      title={next === "dark" ? "Dark mode" : "Light mode"}
+      className="round-button grid size-[42px] shrink-0 place-items-center rounded-full border border-border bg-card text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      {theme === "dark" ? <Sun size={18} aria-hidden="true" className="theme-icon" /> : <Moon size={18} aria-hidden="true" className="theme-icon" />}
+    </button>
   );
 }
 
@@ -217,7 +237,7 @@ function BottomNav() {
   const location = useLocation();
   const activeIndex = navigation.findIndex(({ to, end }) => (end ? location.pathname === to : location.pathname.startsWith(to)));
   return (
-    <nav aria-label="Main navigation" className="fixed inset-x-0 bottom-0 z-10 border-t border-border bg-background/95 px-1 pt-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur md:hidden">
+    <nav aria-label="Main navigation" className="fixed inset-x-0 bottom-0 z-10 border-t border-border bg-background/95 px-1 pt-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur lg:hidden">
       <span
         aria-hidden="true"
         className="bottom-nav-bar absolute left-1 top-0 h-0.5 rounded-full bg-primary"

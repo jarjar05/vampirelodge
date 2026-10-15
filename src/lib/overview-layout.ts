@@ -6,9 +6,9 @@ export type OverviewArea = "top" | "main" | "side";
 
 export const overviewCards: { id: OverviewCardId; label: string; area: OverviewArea }[] = [
   { id: "summary", label: "Summary tiles", area: "top" },
-  { id: "plan", label: "Your plan", area: "main" },
-  { id: "schedule", label: "Today's schedule", area: "main" },
-  { id: "family", label: "Family workload", area: "side" },
+  { id: "plan", label: "Your order for today", area: "main" },
+  { id: "schedule", label: "Today", area: "main" },
+  { id: "family", label: "The family", area: "side" },
   { id: "activity", label: "Recent activity", area: "side" },
 ];
 

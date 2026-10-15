@@ -2,9 +2,10 @@ import { expect, test, type Page } from "@playwright/test";
 
 const password = "a long test password";
 
-/** Creates a fresh account and family through the screens, and leaves the page on the Overview. */
-async function signUp(page: Page, name = "Annie Tester") {
-  const email = `annie.${Date.now()}.${Math.floor(Math.random() * 1e6)}@example.com`;
+/** Creates a fresh account through the screens. With no invite code it also creates a family; with one it joins
+ * that family. Leaves the page on the Overview. */
+async function signUp(page: Page, name = "Annie Tester", inviteCode?: string) {
+  const email = `${name.split(" ")[0].toLowerCase()}.${Date.now()}.${Math.floor(Math.random() * 1e6)}@example.com`;
   await page.goto("/");
   await page.getByRole("button", { name: "Create an account" }).click();
   await page.getByLabel("Full name").fill(name);
@@ -12,8 +13,13 @@ async function signUp(page: Page, name = "Annie Tester") {
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByLabel("Confirm password").fill(password);
   await page.getByRole("button", { name: "Create account" }).click();
-  await page.getByLabel("Family name").fill("Tester Family");
-  await page.getByRole("button", { name: "Create family" }).click();
+  if (inviteCode) {
+    await page.getByLabel("Invite code").fill(inviteCode);
+    await page.getByRole("button", { name: "Join family" }).click();
+  } else {
+    await page.getByLabel("Family name").fill("Tester Family");
+    await page.getByRole("button", { name: "Create family" }).click();
+  }
   await expect(page.getByRole("heading", { level: 1 })).toContainText(`, ${name.split(" ")[0]}`);
   return email;
 }
@@ -104,16 +110,35 @@ test("the calendar shows each member's tasks for the week", async ({ page }) => 
 
 test("customising the Overview is saved to the account", async ({ page }) => {
   await signUp(page);
-  await expect(page.getByRole("heading", { name: "Family" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "The family" })).toBeVisible();
 
   await page.getByRole("button", { name: "Customise" }).click();
-  await page.getByRole("dialog").getByRole("checkbox", { name: "Family workload" }).uncheck();
+  await page.getByRole("dialog").getByRole("checkbox", { name: "The family" }).uncheck();
   await page.getByRole("dialog").getByRole("button", { name: "Save" }).click();
-  await expect(page.getByRole("heading", { name: "Family" })).toBeHidden();
+  await expect(page.getByRole("heading", { name: "The family" })).toBeHidden();
 
   // Still hidden after a reload, because it was saved to the account rather than the browser tab.
   await page.reload();
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Annie");
   await expect(page.getByRole("heading", { name: "Activity" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Family" })).toBeHidden();
+  await expect(page.getByRole("heading", { name: "The family" })).toBeHidden();
+});
+
+test("a change on one person's screen appears on another's without reloading", async ({ page, browser }) => {
+  await signUp(page);
+  await page.getByRole("navigation", { name: "Main navigation" }).first().getByRole("link", { name: "Family" }).click();
+  const inviteCode = (await page.locator("code").first().textContent())?.trim() ?? "";
+  expect(inviteCode.length).toBeGreaterThanOrEqual(6);
+
+  // A second person, in a separate browser with their own sign-in, joins the family and opens Tasks.
+  const otherBrowser = await browser.newContext();
+  const other = await otherBrowser.newPage();
+  await signUp(other, "Ben Tester", inviteCode);
+  await other.getByRole("navigation", { name: "Main navigation" }).first().getByRole("link", { name: "Tasks" }).click();
+  await expect(other.locator("#tasks-panel article", { hasText: "Buy cooking oil" })).toHaveCount(0);
+
+  // The first person adds a task; the second sees it arrive on its own.
+  await addTask(page, "Buy cooking oil");
+  await expect(other.locator("#tasks-panel article", { hasText: "Buy cooking oil" })).toBeVisible({ timeout: 25_000 });
+  await otherBrowser.close();
 });

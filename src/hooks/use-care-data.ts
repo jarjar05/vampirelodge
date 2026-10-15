@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError } from "@/api/client";
 import {
   careApi,
@@ -21,6 +21,9 @@ type Status = "loading" | "ready" | "no-family" | "error";
 function messageFor(error: unknown) {
   return error instanceof Error ? error.message : "Something went wrong. Please try again.";
 }
+
+// How often the family's data is fetched again in the background while the tab is open.
+const refreshEveryMs = 15_000;
 
 /** Loads the signed-in user's family, members, tasks, and activity, and exposes the actions that change them. */
 export function useCareData() {
@@ -59,6 +62,45 @@ export function useCareData() {
   }, []);
 
   useEffect(() => { void reload(); }, [reload]);
+
+  // Other family members' changes arrive without a reload: the data is fetched again quietly every little while,
+  // and straight away when someone comes back to the tab. State is only replaced when something actually changed,
+  // so nothing on screen redraws, restarts an animation or loses its place for no reason.
+  const lastSeen = useRef({ family: "", members: "", tasks: "", activity: "" });
+  const refreshQuietly = useCallback(async () => {
+    try {
+      const [loadedFamily, members, tasks, activity] = await Promise.all([
+        careApi.getFamily(), careApi.listMembers(), careApi.listTasks(), careApi.listActivity(),
+      ]);
+      const seen = lastSeen.current;
+      const changed = (key: keyof typeof seen, value: unknown) => {
+        const text = JSON.stringify(value);
+        if (text === seen[key]) return false;
+        seen[key] = text;
+        return true;
+      };
+      if (changed("family", loadedFamily)) setFamily(loadedFamily);
+      if (changed("members", members)) setRawMembers(members);
+      if (changed("tasks", tasks)) setRawTasks(tasks);
+      if (changed("activity", activity)) setRawActivity(activity);
+    } catch (error) {
+      // The family was deleted, or this person was removed from it, on someone else's screen.
+      if (error instanceof ApiError && error.status === 404) setStatus("no-family");
+      // Anything else (a dropped connection, the server restarting) is simply tried again next time.
+    }
+  }, []);
+  useEffect(() => {
+    if (status !== "ready") return;
+    const refreshIfVisible = () => { if (document.visibilityState === "visible") void refreshQuietly(); };
+    const timer = window.setInterval(refreshIfVisible, refreshEveryMs);
+    window.addEventListener("focus", refreshIfVisible);
+    document.addEventListener("visibilitychange", refreshIfVisible);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refreshIfVisible);
+      document.removeEventListener("visibilitychange", refreshIfVisible);
+    };
+  }, [status, refreshQuietly]);
 
   const members = useMemo(() => rawMembers.map(toMember), [rawMembers]);
   const membersById = useMemo(() => new Map(members.map((member) => [member.id, member])), [members]);

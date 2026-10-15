@@ -1,13 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import {
-  Trash2,
-} from "lucide-react";
+import { Check, Pencil, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { type AuthUser } from "@/components/auth/login-page";
-import { FamilyAvatar } from "@/components/family-avatar";
+import { FamilyAvatar, toneColours } from "@/components/family-avatar";
 import { FamilyStats } from "@/components/family-stats";
+import { MemberDetails } from "@/components/member-details";
 import { type CareData } from "@/hooks/use-care-data";
 import {
   availabilityOptions,
@@ -15,7 +14,7 @@ import {
   type Family,
   type FamilyMember,
 } from "@/types/care";
-import { countActiveTasks, FamilyWorkloadBar, fieldClassName, PageHeading } from "@/components/page-parts";
+import { countActiveTasks, FamilyWorkloadBar, fieldClassName, PageHeader } from "@/components/page-parts";
 
 export function CareCirclePage({ care, family, currentUser }: { care: CareData; family: Family; currentUser: AuthUser }) {
   const { members, tasks } = care;
@@ -28,6 +27,7 @@ export function CareCirclePage({ care, family, currentUser }: { care: CareData; 
   const [noteDraft, setNoteDraft] = useState(me?.availabilityNote ?? "");
   const [inviteCopied, setInviteCopied] = useState(false);
   const [isDeletingFamily, setIsDeletingFamily] = useState(false);
+  const [memberId, setMemberId] = useState<string | null>(null);
   // A family always keeps one admin, so the last one is not offered "Remove admin".
   const adminCount = members.filter((member) => member.accessRole === "ADMIN").length;
   const maxWorkload = Math.max(1, ...members.map((member) => countActiveTasks(tasks, member.id)));
@@ -62,27 +62,31 @@ export function CareCirclePage({ care, family, currentUser }: { care: CareData; 
 
   return (
     <>
-      <PageHeading title="Family" />
+      <PageHeader
+        eyebrow={`${members.length} ${members.length === 1 ? "person" : "people"} sharing the care`}
+        title={<FamilyTitle name={family.name} />}
+        lead="Who is here, what each person carries, and how the work has gone"
+        actions={<Button variant="outline" onClick={() => setIsEditing((current) => !current)}>{isEditing ? <><Check size={15} aria-hidden="true" />Done</> : <><Pencil size={15} aria-hidden="true" />Edit</>}</Button>}
+      />
+      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-2">
       <Card>
-        <CardHeader className="items-center">
-          <div><p className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">Family team</p><h2 className="mt-1 font-display text-xl font-semibold">Members</h2></div>
-          <Button variant="outline" size="sm" onClick={() => setIsEditing((current) => !current)}>
-            {isEditing ? "Done" : "Edit"}
-          </Button>
+        <CardHeader className="items-baseline">
+          <h2 className="font-display text-[23px] font-bold">Members</h2>
+          <span className="text-sm text-muted-foreground">Bars show open tasks</span>
         </CardHeader>
         <CardContent className="pt-3">
           {isEditing && (
             <>
               {isAdmin && (
-                <div className="mb-5 grid gap-3 rounded-lg border border-border bg-muted/20 p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                <div className="mb-5 grid gap-3 rounded-[20px] border border-border bg-muted p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
                   <label className="min-w-0 text-sm font-medium">Family name
                     <input maxLength={120} value={familyNameDraft} onChange={(event) => setFamilyNameDraft(event.target.value)} className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
                   </label>
                   <Button type="button" size="sm" disabled={!familyNameDraft.trim() || familyNameDraft.trim() === family.name} onClick={() => void care.renameFamily(familyNameDraft.trim())}>Save family name</Button>
                 </div>
               )}
-              <form onSubmit={saveMyDetails} className="mb-5 grid gap-3 rounded-lg border border-border bg-muted/20 p-4 md:grid-cols-4">
-                <p className="text-sm font-semibold md:col-span-4">Your details</p>
+              <form onSubmit={saveMyDetails} className="mb-5 grid gap-3 rounded-[20px] border border-border bg-muted p-4 sm:grid-cols-2">
+                <p className="text-sm font-semibold sm:col-span-2">Your details</p>
                 <label className="text-sm font-medium">
                   Role
                   <input maxLength={80} placeholder="e.g. Daughter" value={roleDraft} onChange={(event) => setRoleDraft(event.target.value)} className={fieldClassName} />
@@ -93,20 +97,24 @@ export function CareCirclePage({ care, family, currentUser }: { care: CareData; 
                     {availabilityOptions.map((option) => <option key={option} value={option}>{option}</option>)}
                   </select>
                 </label>
-                <label className="text-sm font-medium md:col-span-2">
+                <label className="text-sm font-medium sm:col-span-2">
                   Availability note <span className="font-normal text-muted-foreground">(optional)</span>
                   <input maxLength={200} placeholder="e.g. Available this evening" value={noteDraft} onChange={(event) => setNoteDraft(event.target.value)} className={fieldClassName} />
                 </label>
-                <div className="flex justify-end md:col-span-4">
+                <div className="flex justify-end sm:col-span-2">
                   <Button type="submit" size="sm" disabled={!detailsChanged}>Save my details</Button>
                 </div>
               </form>
             </>
           )}
 
-          <div className="stagger divide-y divide-border">
+          <div className="stagger space-y-2.5">
           {members.map((member) => (
-            <div key={member.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 py-4 sm:px-2">
+            <div
+              key={member.id}
+              onClick={isEditing ? undefined : () => setMemberId(member.id)}
+              className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 rounded-[20px] border border-border bg-card px-3.5 py-3 ${isEditing ? "" : "row-lift cursor-pointer"}`}
+            >
               <div className="flex min-w-0 items-center gap-3">
                 {isEditing && isAdmin && member.id !== currentUser.id && (
                   <button
@@ -118,14 +126,23 @@ export function CareCirclePage({ care, family, currentUser }: { care: CareData; 
                     −
                   </button>
                 )}
-                <FamilyAvatar initials={member.initials} tone={member.tone} imageUrl={member.avatarUrl} className="size-10" />
+                <FamilyAvatar initials={member.initials} tone={member.tone} imageUrl={member.avatarUrl} className="size-[46px] text-sm" />
                 <div className="min-w-0 flex-1">
-                  <p className="flex min-w-0 items-center gap-2 text-sm font-semibold">
-                    <span className="truncate">{member.name}{member.id === currentUser.id && <span className="font-normal text-muted-foreground"> (you)</span>}</span>
+                  <p className="flex min-w-0 items-center gap-2 font-extrabold">
+                    {/* The name is a real button, so the member can also be opened from the keyboard. */}
+                    {isEditing
+                      ? <span className="truncate">{member.name}{member.id === currentUser.id && <span className="text-sm font-bold text-muted-foreground"> (you)</span>}</span>
+                      : (
+                        <button type="button" aria-haspopup="dialog" onClick={(event) => { event.stopPropagation(); setMemberId(member.id); }} className="truncate rounded text-left hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                          {member.name}{member.id === currentUser.id && <span className="text-sm font-bold text-muted-foreground"> (you)</span>}
+                        </button>
+                      )}
                     {member.accessRole === "ADMIN" && <Badge variant="outline" className="shrink-0 px-2 py-0.5 text-[10px]">Admin</Badge>}
                   </p>
-                  <FamilyWorkloadBar name={member.name} activeTasks={countActiveTasks(tasks, member.id)} maxTasks={maxWorkload} />
+                  <p className="truncate text-[13px] font-bold text-muted-foreground">{member.role} · {member.availability}</p>
+                  <FamilyWorkloadBar name={member.name} activeTasks={countActiveTasks(tasks, member.id)} maxTasks={maxWorkload} colour={toneColours[member.tone]} />
                 </div>
+                {!isEditing && <span aria-hidden="true" className="font-display text-[22px] font-bold">{countActiveTasks(tasks, member.id)}</span>}
               </div>
               {isEditing && isAdmin && (member.accessRole !== "ADMIN" || adminCount > 1) && (
                 <Button
@@ -140,18 +157,19 @@ export function CareCirclePage({ care, family, currentUser }: { care: CareData; 
           ))}
           </div>
           {family.inviteCode && (
-            <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-border pt-4 text-xs text-muted-foreground sm:px-2">
-              <span>Invite code</span>
-              <code className="font-mono tracking-widest text-foreground/80">{family.inviteCode}</code>
-              <button type="button" onClick={() => void copyInviteCode()} className="font-semibold text-primary link-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                {inviteCopied ? "Copied" : "Copy"}
+            <p className="mt-4 flex flex-wrap items-center gap-x-2.5 gap-y-1 rounded-[18px] border border-dashed border-mustard/60 bg-mustard/15 px-4 py-3.5 text-sm text-muted-foreground">
+              <span className="font-extrabold">Invite code</span>
+              <code className="font-mono text-base font-extrabold tracking-[0.14em] text-foreground">{family.inviteCode}</code>
+              <button type="button" onClick={() => void copyInviteCode()} className={`font-extrabold link-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${inviteCopied ? "text-success-foreground" : "text-primary"}`}>
+                {inviteCopied ? "✓ Copied" : "Copy"}
               </button>
               <span className="basis-full sm:basis-auto">· Share it so someone with an account can join.</span>
             </p>
           )}
         </CardContent>
       </Card>
-      <FamilyStats className="mt-6" members={members} tasks={tasks} />
+      <FamilyStats members={members} tasks={tasks} />
+      </div>
       {isEditing && isAdmin && (
         <div className="mt-6 flex justify-end">
           <button type="button" onClick={() => setIsDeletingFamily(true)} className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-alert hover:bg-alert/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-alert">
@@ -159,9 +177,17 @@ export function CareCirclePage({ care, family, currentUser }: { care: CareData; 
           </button>
         </div>
       )}
+      {memberId && <MemberDetails care={care} memberId={memberId} onClose={() => setMemberId(null)} />}
       {isDeletingFamily && <DeleteFamilyDialog familyName={family.name} onDelete={care.deleteFamily} onClose={() => setIsDeletingFamily(false)} />}
     </>
   );
+}
+
+/** The family's name with its own word in clay, e.g. "The *Suanni* family". */
+function FamilyTitle({ name }: { name: string }) {
+  const words = name.trim().split(/\s+/);
+  const accent = words.findIndex((word) => !/^(the|a|an|of|and|&)$/i.test(word));
+  return <>{words.map((word, index) => <span key={`${word}-${index}`}>{index > 0 ? " " : ""}{index === accent ? <em>{word}</em> : word}</span>)}</>;
 }
 
 /** Asks for the family's name before deleting it, so it cannot happen by a stray click. */

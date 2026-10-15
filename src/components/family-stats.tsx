@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { CheckCircle2, ClipboardList, Timer } from "lucide-react";
 import { CountUp } from "@/components/count-up";
-import { FamilyAvatar } from "@/components/family-avatar";
+import { FamilyAvatar, toneColours } from "@/components/family-avatar";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import type { CareTask, FamilyMember } from "@/types/care";
 
@@ -56,11 +56,11 @@ function leaders(stats: readonly MemberStats[], score: (entry: MemberStats) => n
 
 function Highlight({ icon: Icon, label, name, value }: { icon: typeof Timer; label: string; name: string | null; value: string }) {
   return (
-    <div className="rounded-xl border border-border bg-muted/30 p-4">
-      <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground"><Icon size={14} aria-hidden="true" />{label}</p>
+    <div className="rounded-[20px] border border-border bg-muted p-4">
+      <p className="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-[0.06em] text-muted-foreground"><Icon size={14} aria-hidden="true" />{label}</p>
       {/* Keyed by its text, so a new leader or figure rises into place instead of snapping. */}
       <div key={`${name}|${value}`} className="swap-in">
-        <p className="mt-2 truncate font-display text-xl font-semibold">{name ?? "No one yet"}</p>
+        <p className="mt-1.5 font-display text-[22px] font-bold leading-tight break-words">{name ?? "No one yet"}</p>
         <p className="mt-0.5 text-xs text-muted-foreground">{name ? value : "Nothing to show for this period"}</p>
       </div>
     </div>
@@ -98,9 +98,9 @@ export function FamilyStats({ members, tasks, className }: { members: readonly F
   return (
     <Card className={className}>
       <CardHeader className="flex-wrap items-center">
-        <h2 className="font-display text-xl font-semibold">Task history</h2>
-        <div role="radiogroup" aria-label="Period" className="relative grid grid-cols-3 rounded-lg border border-border bg-muted/60 p-1">
-          <span aria-hidden="true" className="segment-thumb pointer-events-none absolute inset-y-1 left-1 w-[calc((100%-0.5rem)/3)] rounded-md bg-card shadow-sm" style={{ translate: `${periodIndex * 100}% 0` }} />
+        <h2 className="font-display text-[23px] font-bold">Task history</h2>
+        <div role="radiogroup" aria-label="Period" className="relative grid grid-cols-3 rounded-2xl border border-border bg-muted p-1">
+          <span aria-hidden="true" className="segment-thumb pointer-events-none absolute inset-y-1 left-1 w-[calc((100%-0.5rem)/3)] shadow-soft rounded-xl bg-card" style={{ translate: `${periodIndex * 100}% 0` }} />
           {periods.map((option, index) => (
             <button
               key={option.label}
@@ -108,7 +108,7 @@ export function FamilyStats({ members, tasks, className }: { members: readonly F
               role="radio"
               aria-checked={periodIndex === index}
               onClick={() => setPeriodIndex(index)}
-              className={`relative whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${periodIndex === index ? "text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              className={`relative whitespace-nowrap rounded-xl px-3 py-1.5 text-[13px] font-extrabold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${periodIndex === index ? "text-foreground" : "text-muted-foreground hover:text-foreground"}`}
             >
               {option.label}
             </button>
@@ -125,7 +125,7 @@ export function FamilyStats({ members, tasks, className }: { members: readonly F
         <div className="mt-5 overflow-x-auto">
           <table className="w-full min-w-[30rem] text-sm">
             <thead>
-              <tr className="border-b border-border text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+              <tr className="border-b border-border text-left text-xs font-extrabold uppercase tracking-[0.06em] text-muted-foreground">
                 <th scope="col" className="py-2 pr-3 font-semibold">Member</th>
                 <th scope="col" className="w-[34%] px-3 py-2 font-semibold">Completed</th>
                 <th scope="col" className="px-3 py-2 text-right font-semibold">On time</th>
@@ -139,15 +139,15 @@ export function FamilyStats({ members, tasks, className }: { members: readonly F
                   <th scope="row" className="py-3 pr-3 text-left font-normal">
                     <span className="flex items-center gap-2.5">
                       <FamilyAvatar initials={member.initials} tone={member.tone} imageUrl={member.avatarUrl} className="size-8" />
-                      <span className="truncate font-semibold">{member.firstName}</span>
+                      <span className="truncate font-extrabold">{member.firstName}</span>
                     </span>
                   </th>
                   <td className="px-3 py-3">
                     <span className="flex items-center gap-2.5">
-                      <span aria-hidden="true" className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-muted">
-                        <span className="bar-fill block h-full rounded-full bg-primary" style={{ width: `${(completed / maxCompleted) * 100}%` }} />
+                      <span aria-hidden="true" className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-muted">
+                        <span className="bar-fill block h-full rounded-full" style={{ width: `${(completed / maxCompleted) * 100}%`, background: toneColours[member.tone] }} />
                       </span>
-                      <span className="w-6 text-right font-semibold"><CountUp value={completed} /></span>
+                      <span className="w-6 text-right font-extrabold"><CountUp value={completed} /></span>
                     </span>
                   </td>
                   <td className="px-3 py-3 text-right tabular-nums" title={completed > 0 ? `${onTime} of ${completed} finished by the due time` : undefined}>
