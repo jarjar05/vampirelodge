@@ -166,8 +166,8 @@ export function DayTimeline({ members, schedules, onOpenTask }: { members: reado
   const hourLabels = [7, 10, 13, 16, 19, 22].map((hour) => formatClock(new Date(dayStart(today).getTime() + hour * 3_600_000)).replace(":00", ""));
 
   return (
-    <div className="mt-4">
-      <div className="stagger space-y-2.5">
+    <div className="mt-4 flex flex-1 flex-col">
+      <div className="stagger flex flex-1 flex-col justify-evenly gap-2.5">
         {members.map((member, lane) => {
           const schedule = byMember.get(member.id);
           const items = itemsOnDay(schedule, today);
@@ -227,7 +227,10 @@ export function DayTimeline({ members, schedules, onOpenTask }: { members: reado
       </div>
       <div aria-hidden="true" className="mt-2 grid grid-cols-[minmax(0,104px)_minmax(0,1fr)] gap-3 text-[12px] font-bold text-muted-foreground sm:grid-cols-[minmax(0,120px)_minmax(0,1fr)]">
         <span />
-        <div className="flex justify-between">{hourLabels.map((label) => <span key={label}>{label}</span>)}</div>
+        <div className="flex justify-between whitespace-nowrap">
+          {/* On a narrow screen every other hour, so each fits on one line. */}
+          {hourLabels.map((label, index) => <span key={label} className={index % 2 ? "hidden sm:inline" : undefined}>{label}</span>)}
+        </div>
       </div>
     </div>
   );

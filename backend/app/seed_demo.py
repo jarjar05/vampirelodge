@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app.init_db import initialize_database
 from app.models import Family, FamilyMembership, Task, User
-from app.services.tasks import record_activity
+from app.services.tasks import record_activity, set_assignees
 from app.utils.passwords import hash_password
 
 DEMO_EMAIL_DOMAIN = "@demo.invalid"
@@ -117,12 +117,12 @@ def seed(database: Session, user: User, reset: bool = False) -> str:
             detail=detail,
             location=location,
             due_at=_local_time(days, hour, minute),
-            assignee_id=assignee.id if assignee else None,
             priority=priority,
             status=status,
             created_by_id=user.id,
             completed_at=_local_time(days, hour, minute) if status == "Completed" else None,
         )
+        set_assignees(task, [assignee.id] if assignee else [])
         database.add(task)
         record_activity(task, user.id, "Created", "Added to the household delegation board")
         if assignee is not None:

@@ -6,6 +6,8 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 TaskPriority = Literal["High", "Normal", "Low"]
 TaskRecurrence = Literal["daily", "weekly", "biweekly", "monthly"]
+# The most people one task can be shared between.
+MAX_ASSIGNEES = 10
 
 
 class TaskCreateRequest(BaseModel):
@@ -15,6 +17,8 @@ class TaskCreateRequest(BaseModel):
     due_at: datetime | None = None
     priority: TaskPriority = "Normal"
     assignee_id: uuid.UUID | None = None
+    # Several people sharing the task. When given, it is used instead of assignee_id; the first is the lead.
+    assignee_ids: list[uuid.UUID] | None = Field(default=None, max_length=MAX_ASSIGNEES)
     # A repeating task needs a due time to count from.
     recurrence: TaskRecurrence | None = None
 
@@ -58,7 +62,16 @@ class TaskUpdateRequest(BaseModel):
 
 
 class TaskAssignRequest(BaseModel):
-    assignee_id: uuid.UUID | None
+    """Who the task is given to: assignee_ids for one or more people (an empty list unassigns it), or the older
+    single assignee_id."""
+
+    assignee_id: uuid.UUID | None = None
+    assignee_ids: list[uuid.UUID] | None = Field(default=None, max_length=MAX_ASSIGNEES)
+
+    def chosen(self) -> list[uuid.UUID]:
+        if self.assignee_ids is not None:
+            return list(dict.fromkeys(self.assignee_ids))
+        return [self.assignee_id] if self.assignee_id else []
 
 
 class TaskActivityResponse(BaseModel):
@@ -76,7 +89,10 @@ class TaskResponse(BaseModel):
     detail: str
     location: str | None
     due_at: datetime | None
+    # The lead: the first of assignee_ids, or None when nobody has it.
     assignee_id: uuid.UUID | None
+    # Everyone the task is given to, lead first.
+    assignee_ids: list[uuid.UUID]
     priority: str
     status: str
     created_at: datetime
@@ -86,7 +102,10 @@ class TaskResponse(BaseModel):
 
 
 class AssignmentSuggestionResponse(BaseModel):
+    # The first of member_ids.
     member_id: uuid.UUID
+    # Usually one person; several when the task suits more than one, such as homework for each child.
+    member_ids: list[uuid.UUID]
     reason: str
     # Titles of the family notes that were given to the model for this suggestion.
     note_titles: list[str]
@@ -123,6 +142,7 @@ class QuickSuggestionResponse(BaseModel):
     """A suggestion from plain rules, with no model call: who is free, their role, and their workload."""
 
     member_id: uuid.UUID | None
+    member_ids: list[uuid.UUID]
     reason: str
     busy_member_ids: list[uuid.UUID]
 

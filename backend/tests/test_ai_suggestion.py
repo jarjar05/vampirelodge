@@ -32,12 +32,13 @@ def test_suggestion_uses_members_workload_and_family_notes(family, fake_model):
     _task(admin, title="Call clinic", assignee_id=member.user_id)
     admin.post("/api/families/me/knowledge", json={"title": "Who does what", "category": "care_note", "content": "Alice collects medication from Oak Pharmacy."})
     task = _task(admin)
-    fake_model.answer = {"member_id": admin.user_id, "reason": "Alice is available and already collects medication."}
+    fake_model.answer = {"member_ids": [admin.user_id], "reason": "Alice is available and already collects medication."}
 
     response = admin.post(f"/api/families/me/tasks/{task['id']}/suggestion")
     assert response.status_code == 200, response.text
     assert response.json() == {
         "member_id": admin.user_id,
+        "member_ids": [admin.user_id],
         "reason": "Alice is available and already collects medication.",
         "note_titles": ["Who does what"],
     }
@@ -49,7 +50,7 @@ def test_suggestion_uses_members_workload_and_family_notes(family, fake_model):
     assert "Call clinic" in prompt  # Ben's existing workload
     assert "Alice collects medication from Oak Pharmacy." in prompt
     # The model can only answer with a member of this family.
-    assert sorted(request["schema"]["properties"]["member_id"]["enum"]) == sorted([admin.user_id, member.user_id])
+    assert sorted(request["schema"]["properties"]["member_ids"]["items"]["enum"]) == sorted([admin.user_id, member.user_id])
     # Nothing was assigned by asking.
     listed = {item["id"]: item for item in admin.get("/api/families/me/tasks").json()}
     assert listed[task["id"]]["assignee_id"] is None
@@ -61,7 +62,7 @@ def test_other_families_notes_and_members_never_reach_the_prompt(family, login, 
     outsider.post("/api/families", json={"name": "Other Family"})
     outsider.post("/api/families/me/knowledge", json={"title": "Private", "category": "care_note", "content": "Olivia secret medication note."})
     task = _task(admin)
-    fake_model.answer = {"member_id": admin.user_id, "reason": "Available."}
+    fake_model.answer = {"member_ids": [admin.user_id], "reason": "Available."}
 
     assert admin.post(f"/api/families/me/tasks/{task['id']}/suggestion").status_code == 200
     prompt = fake_model.requests[0]["prompt"]
@@ -75,7 +76,7 @@ def test_unusable_or_missing_answers_become_a_503(family, fake_model, login):
     task = _task(admin)
     outsider = login("Olivia")
 
-    for answer in ({"member_id": outsider.user_id, "reason": "x"}, {"member_id": admin.user_id, "reason": "  "}, {}):
+    for answer in ({"member_ids": [outsider.user_id], "reason": "x"}, {"member_ids": [admin.user_id], "reason": "  "}, {"member_ids": [], "reason": "x"}, {}):
         fake_model.answer = answer
         assert admin.post(f"/api/families/me/tasks/{task['id']}/suggestion").status_code == 503, answer
 
@@ -90,7 +91,7 @@ def test_suggestion_still_works_when_notes_cannot_be_searched(family, fake_model
 
     admin, _member = family
     task = _task(admin)
-    fake_model.answer = {"member_id": admin.user_id, "reason": "Available."}
+    fake_model.answer = {"member_ids": [admin.user_id], "reason": "Available."}
 
     def fail(**_kwargs):
         raise chroma_service.ChromaServiceError("down")
@@ -149,7 +150,7 @@ def test_generate_json_sends_the_expected_request(monkeypatch):
 def test_the_assignment_schema_meets_strict_mode_rules(family, fake_model):
     admin, _member = family
     task = _task(admin)
-    fake_model.answer = {"member_id": admin.user_id, "reason": "Available."}
+    fake_model.answer = {"member_ids": [admin.user_id], "reason": "Available."}
     admin.post(f"/api/families/me/tasks/{task['id']}/suggestion")
 
     request = fake_model.requests[0]

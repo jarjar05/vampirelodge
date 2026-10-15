@@ -114,13 +114,14 @@ def build_prompt(database: Session, family_id: uuid.UUID, asker: User, question:
             "due": _label(task.due_at, zone),
             "overdue": bool(task.due_at and task.due_at < now),
             "priority": task.priority,
-            "assigned_to": names.get(task.assignee_id) if task.assignee_id else None,
+            # Everyone on the task, lead first; empty when nobody has it.
+            "assigned_to": [names[user_id] for user_id in task.assignee_ids if user_id in names],
             "repeats": task.recurrence,
         }
         for task in open_tasks
     ]
     finished = [
-        {"title": task.title, "done_by": names.get(task.assignee_id) if task.assignee_id else None, "finished": _label(task.completed_at, zone)}
+        {"title": task.title, "done_by": [names[user_id] for user_id in task.assignee_ids if user_id in names], "finished": _label(task.completed_at, zone)}
         for task in done
     ]
     notes = _notes_for(family_id, question)

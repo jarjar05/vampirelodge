@@ -14,7 +14,7 @@ import {
   type Family,
   type FamilyMember,
 } from "@/types/care";
-import { countActiveTasks, FamilyWorkloadBar, fieldClassName, PageHeader } from "@/components/page-parts";
+import { BannerButton, countActiveTasks, FamilyWorkloadBar, fieldClassName, PageHeader } from "@/components/page-parts";
 
 export function CareCirclePage({ care, family, currentUser }: { care: CareData; family: Family; currentUser: AuthUser }) {
   const { members, tasks } = care;
@@ -66,15 +66,15 @@ export function CareCirclePage({ care, family, currentUser }: { care: CareData; 
         eyebrow={`${members.length} ${members.length === 1 ? "person" : "people"} sharing the care`}
         title={<FamilyTitle name={family.name} />}
         lead="Who is here, what each person carries, and how the work has gone"
-        actions={<Button variant="outline" onClick={() => setIsEditing((current) => !current)}>{isEditing ? <><Check size={15} aria-hidden="true" />Done</> : <><Pencil size={15} aria-hidden="true" />Edit</>}</Button>}
+        actions={<BannerButton icon={isEditing ? Check : Pencil} aria-pressed={isEditing} onClick={() => setIsEditing((current) => !current)}>{isEditing ? "Done" : "Edit"}</BannerButton>}
       />
-      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-2">
-      <Card>
+      {/* Members and Task history side by side, always the same height. */}
+      <div className="grid grid-cols-[minmax(0,1fr)] items-stretch gap-6 lg:grid-cols-2">
+      <Card className="flex flex-col">
         <CardHeader className="items-baseline">
           <h2 className="font-display text-[23px] font-bold">Members</h2>
-          <span className="text-sm text-muted-foreground">Bars show open tasks</span>
         </CardHeader>
-        <CardContent className="pt-3">
+        <CardContent className="flex flex-1 flex-col pt-3">
           {isEditing && (
             <>
               {isAdmin && (
@@ -108,7 +108,7 @@ export function CareCirclePage({ care, family, currentUser }: { care: CareData; 
             </>
           )}
 
-          <div className="stagger space-y-2.5">
+          <div className="stagger flex flex-1 flex-col justify-evenly gap-2.5">
           {members.map((member) => (
             <div
               key={member.id}
@@ -228,7 +228,7 @@ function DeleteFamilyDialog({ familyName, onDelete, onClose }: { familyName: str
         <input id="delete-family-name" autoFocus autoComplete="off" value={typedName} onChange={(event) => setTypedName(event.target.value)} className={fieldClassName} />
         <div className="mt-6 flex justify-end gap-2">
           <Button type="button" variant="outline" onClick={() => dialogRef.current?.close()}>Cancel</Button>
-          <button type="submit" disabled={!matches || isDeleting} className="inline-flex h-10 items-center justify-center rounded-md bg-alert px-4 text-sm font-semibold text-white shadow-sm hover:-translate-y-0.5 hover:shadow-lg hover:shadow-alert/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-alert focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50">
+          <button type="submit" disabled={!matches || isDeleting} className="inline-flex h-10 items-center justify-center rounded-md bg-alert px-4 text-sm font-semibold text-primary-foreground shadow-sm hover:-translate-y-0.5 hover:shadow-lg hover:shadow-alert/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-alert focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50">
             {isDeleting ? "Deleting…" : "Delete family"}
           </button>
         </div>

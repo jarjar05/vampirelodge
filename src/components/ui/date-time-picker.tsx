@@ -1,10 +1,82 @@
-import { useState } from "react";
+import { useLayoutEffect, useState, type RefObject } from "react";
+import { createPortal } from "react-dom";
 import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Clock3 } from "lucide-react";
 import { usePopover } from "@/hooks/use-popover";
 import { cn } from "@/lib/utils";
 
 const triggerClassName = "mt-1.5 flex w-full items-center gap-2.5 rounded-md border border-input bg-background px-3 py-2.5 text-left text-sm font-normal text-foreground transition-colors hover:border-primary/50 focus:outline-none focus:ring-2 focus:ring-ring";
-const panelClassName = "absolute left-0 top-full z-30 mt-2 rounded-xl border border-border bg-card text-foreground shadow-lg";
+const panelClassName = "fixed z-50 overscroll-contain rounded-xl border border-border bg-card text-foreground shadow-lg";
+// Room kept clear at the screen's edges, and at the bottom for the phone navigation bar.
+const edgeGap = 8;
+const fieldGap = 6;
+
+/**
+ * A picker's panel, kept wholly on screen: under its field when there is room, above it when there is more room
+ * there, and otherwise as much as fits, scrolling inside. It is drawn at the top of the page (or of the dialog the
+ * field is in), so no card or scrolling box around the field can cut it off, and it follows the field on scroll.
+ */
+function FloatingPanel({
+  anchorRef,
+  panelRef,
+  align = "start",
+  className,
+  children,
+  ...props
+}: {
+  anchorRef: RefObject<HTMLElement | null>;
+  panelRef: RefObject<HTMLDivElement | null>;
+  align?: "start" | "end";
+  className?: string;
+  children: React.ReactNode;
+} & Omit<React.HTMLAttributes<HTMLDivElement>, "className" | "children">) {
+  const [position, setPosition] = useState<React.CSSProperties>({ visibility: "hidden" });
+  useLayoutEffect(() => {
+    const place = () => {
+      const anchor = anchorRef.current;
+      const panel = panelRef.current;
+      if (!anchor || !panel) return;
+      const field = anchor.getBoundingClientRect();
+      const nav = document.querySelector<HTMLElement>("nav[aria-label='Main navigation']");
+      const navHeight = nav && getComputedStyle(nav).display !== "none" ? nav.offsetHeight : 0;
+      const viewportHeight = window.innerHeight - navHeight;
+      const width = Math.min(panel.offsetWidth, window.innerWidth - edgeGap * 2);
+      const height = panel.scrollHeight;
+      const below = viewportHeight - field.bottom - fieldGap - edgeGap;
+      const above = field.top - fieldGap - edgeGap;
+      let top: number;
+      let maxHeight: number | undefined;
+      if (height <= below) top = field.bottom + fieldGap;
+      else if (height <= above) top = field.top - fieldGap - height;
+      else {
+        // Too tall for either side: use the whole screen height and scroll within it.
+        maxHeight = viewportHeight - edgeGap * 2;
+        top = Math.max(edgeGap, Math.min(viewportHeight - edgeGap - Math.min(height, maxHeight), below >= above ? field.bottom + fieldGap : edgeGap));
+      }
+      const preferred = align === "end" ? field.right - width : field.left;
+      const left = Math.max(edgeGap, Math.min(preferred, window.innerWidth - edgeGap - width));
+      // Only a panel that does not fit scrolls; otherwise the small menus inside it may spill past its edge.
+      setPosition({ top, left, maxHeight, overflowY: maxHeight ? "auto" : undefined });
+    };
+    place();
+    const observer = new ResizeObserver(place);
+    if (panelRef.current) observer.observe(panelRef.current);
+    window.addEventListener("resize", place);
+    // Capture, so scrolling any box the field is in moves the panel with it.
+    window.addEventListener("scroll", place, true);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [anchorRef, panelRef, align]);
+  // Move focus into the panel, since it is no longer next to its field in the page.
+  useLayoutEffect(() => {
+    const panel = panelRef.current;
+    (panel?.querySelector<HTMLElement>("[aria-pressed='true']") ?? panel)?.focus({ preventScroll: true });
+  }, [panelRef]);
+  const host = anchorRef.current?.closest("dialog") ?? document.body;
+  return createPortal(<div ref={panelRef} tabIndex={-1} className={cn(panelClassName, "focus:outline-none", className)} style={position} {...props}>{children}</div>, host);
+}
 const weekdays = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
 
 function toDateValue(date: Date) {
@@ -44,7 +116,7 @@ export function DatePicker({
   /** Id of the element that labels this field. */
   labelledBy: string;
 }) {
-  const { isOpen, containerRef, toggle, close } = usePopover();
+  const { isOpen, containerRef, panelRef, toggle, close } = usePopover();
   const selected = fromDateValue(value);
   const [viewMonth, setViewMonth] = useState(() => new Date(selected.getFullYear(), selected.getMonth(), 1));
   const [view, setView] = useState<"days" | "months">("days");
@@ -77,7 +149,7 @@ export function DatePicker({
         <span className="truncate">{new Intl.DateTimeFormat("en", { weekday: "short", day: "numeric", month: "short", year: "numeric" }).format(selected)}</span>
       </button>
       {isOpen && (
-        <div role="dialog" aria-label={view === "days" ? "Choose a date" : "Choose a month"} className={cn(panelClassName, "w-72 max-w-[calc(100vw-3rem)] p-3")}>
+        <FloatingPanel anchorRef={containerRef} panelRef={panelRef} role="dialog" aria-label={view === "days" ? "Choose a date" : "Choose a month"} className="w-72 p-3">
           {view === "days" ? (
             <>
               <div className="flex items-center justify-between">
@@ -164,7 +236,7 @@ export function DatePicker({
               </div>
             </>
           )}
-        </div>
+        </FloatingPanel>
       )}
     </div>
   );
@@ -310,7 +382,7 @@ function TimeNumberField({
  * `value` and `onChange` use the same HH:MM strings as a native time input.
  */
 export function TimePicker({ value, onChange, labelledBy }: { value: string; onChange: (value: string) => void; labelledBy: string }) {
-  const { isOpen, containerRef, toggle, close } = usePopover();
+  const { isOpen, containerRef, panelRef, toggle, close } = usePopover();
   const [draft, setDraft] = useState<TimeParts>(() => toTimeParts(value));
   const [openField, setOpenField] = useState<"hour" | "minute" | "period" | null>(null);
   const setFieldOpen = (field: "hour" | "minute" | "period") => (open: boolean) =>
@@ -332,7 +404,7 @@ export function TimePicker({ value, onChange, labelledBy }: { value: string; onC
         <span className="truncate">{formatTimeValue(value)}</span>
       </button>
       {isOpen && (
-        <div role="dialog" aria-label="Set time" onMouseDown={() => setOpenField(null)} className={cn(panelClassName, "left-auto right-0 w-72 max-w-[calc(100vw-3rem)] p-5")}>
+        <FloatingPanel anchorRef={containerRef} panelRef={panelRef} align="end" role="dialog" aria-label="Set time" onMouseDown={() => setOpenField(null)} className="w-72 p-5">
           <p className="text-center font-display text-lg font-semibold">Set time</p>
           <div className="mt-4"><ClockFace hour={draft.hour} minute={draft.minute} /></div>
 
@@ -372,7 +444,7 @@ export function TimePicker({ value, onChange, labelledBy }: { value: string; onC
           <button type="button" onClick={close} className="mt-2 w-full rounded py-1 text-center text-xs font-medium text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
             Cancel
           </button>
-        </div>
+        </FloatingPanel>
       )}
     </div>
   );

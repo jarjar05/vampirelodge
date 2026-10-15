@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import type { CareTask } from "@/types/care";
+import { isAssignedTo, type CareTask } from "@/types/care";
 
 export type CareNotification = {
   id: string;
@@ -20,7 +20,7 @@ export function buildNotifications(
   now = new Date(),
 ): CareNotification[] {
   const notifications: CareNotification[] = [];
-  const myTasks = tasks.filter((task) => !task.complete && task.assigneeId === currentUserId);
+  const myTasks = tasks.filter((task) => !task.complete && isAssignedTo(task, currentUserId));
 
   for (const task of myTasks.filter((item) => item.attention === "Overdue")) {
     notifications.push({ id: `overdue-${task.id}`, title: task.title, detail: `Overdue · was due ${task.time}`, to: "/tasks?filter=My%20Tasks", tone: "alert" });
@@ -55,7 +55,7 @@ export function buildNotifications(
     });
   }
 
-  const unassigned = tasks.filter((task) => !task.complete && task.assigneeId === null);
+  const unassigned = tasks.filter((task) => !task.complete && task.assigneeIds.length === 0);
   if (unassigned.length > 0) {
     notifications.push({
       // Includes the task ids so a dismissed group comes back when a new task joins the queue.

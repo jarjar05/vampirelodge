@@ -13,10 +13,10 @@ from typing import Any
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from app.models import FamilyMembership, Task, TelegramDraft, User
+from app.models import FamilyMembership, Task, TaskAssignee, TelegramDraft, User
 from app.services import assignment, document_tasks, llm, plain_dates, recurrence, telegram_api
 from app.services.day_plan import resolve_timezone
-from app.services.tasks import get_family_member, record_activity
+from app.services.tasks import get_family_member, record_activity, set_assignees
 from app.services.telegram_api import TelegramError
 
 LINK_CODE_LIFETIME = timedelta(minutes=15)
@@ -126,28 +126,29 @@ def _notify(user: User | None, lines: list[str], task: Task) -> None:
         pass
 
 
-def notify_assigned(database: Session, task: Task, actor: User) -> None:
-    """Tell the assignee they have a new task, unless they gave it to themselves."""
-    if task.assignee_id is None or task.assignee_id == actor.id:
-        return
-    _notify(database.get(User, task.assignee_id), [f"📌 {actor.name.split()[0]} gave you a task: {task.title}"], task)
+def notify_assigned(database: Session, task: Task, actor: User, user_ids: list[uuid.UUID] | None = None) -> None:
+    """Tell each person newly given the task (everyone on it, by default), except whoever gave it to them."""
+    for user_id in task.assignee_ids if user_ids is None else user_ids:
+        if user_id != actor.id:
+            _notify(database.get(User, user_id), [f"📌 {actor.name.split()[0]} gave you a task: {task.title}"], task)
 
 
 def notify_updated(database: Session, task: Task, actor: User, what_changed: str) -> None:
-    """Tell the assignee their task was changed by someone else."""
-    if task.assignee_id is None or task.assignee_id == actor.id:
-        return
-    _notify(database.get(User, task.assignee_id), [f"✏️ {actor.name.split()[0]} changed the {what_changed} of: {task.title}"], task)
+    """Tell everyone on the task that someone else changed it."""
+    for user_id in task.assignee_ids:
+        if user_id != actor.id:
+            _notify(database.get(User, user_id), [f"✏️ {actor.name.split()[0]} changed the {what_changed} of: {task.title}"], task)
 
 
 # ── Overdue reminders ──────────────────────────────────────────────────────────
 
 def send_overdue_reminders(database: Session, now: datetime | None = None) -> int:
-    """Message each linked assignee once when a task of theirs has just fallen overdue. Returns how many were sent."""
+    """Message each linked person on a task once when it has just fallen overdue. Returns how many were sent."""
     now = now or datetime.now(timezone.utc)
     rows = database.execute(
         select(Task, User)
-        .join(User, User.id == Task.assignee_id)
+        .join(TaskAssignee, TaskAssignee.task_id == Task.id)
+        .join(User, User.id == TaskAssignee.user_id)
         .where(
             Task.status != "Completed",
             Task.due_at.is_not(None),
@@ -441,7 +442,7 @@ def _complete_from_reminder(database: Session, user: User, task_hex: str) -> tup
         return "That task no longer exists.", "This task no longer exists."
     if task.status == "Completed":
         return "Already completed.", f"✅ Completed: {task.title}"
-    if task.assignee_id != user.id:
+    if user.id not in task.assignee_ids:
         return "This task is no longer assigned to you.", f"{task.title} is no longer assigned to you."
     task.status = "Completed"
     task.completed_at = datetime.now(timezone.utc)
@@ -481,7 +482,8 @@ def _add_draft(database: Session, user: User, draft: TelegramDraft) -> tuple[str
         database.delete(draft)
         database.commit()
         return "Task added.", f"{added}\n\nNo one is assigned yet. Assign it in the app.", []
-    member = get_family_member(database, task.family_id, suggestion.member_id)
+    # The bot offers the first person suggested; sharing a task between several people is done in the app.
+    member = get_family_member(database, task.family_id, suggestion.member_ids[0])
     if member is None:
         database.delete(draft)
         database.commit()
@@ -523,8 +525,8 @@ def _handle_draft_button(database: Session, user: User, action: str, draft_hex: 
     added = f"✅ Added: {task.title}\nDue: {_when(task.due_at, user)}"
     member = get_family_member(database, task.family_id, draft.suggested_member_id) if draft.suggested_member_id else None
     database.delete(draft)
-    if action == "as" and member is not None and task.assignee_id is None and task.status != "Completed":
-        task.assignee_id = member.id
+    if action == "as" and member is not None and not task.assignee_ids and task.status != "Completed":
+        set_assignees(task, [member.id])
         task.overdue_reminded_at = None
         record_activity(task, user.id, "Assigned", f"Assigned to {member.name}")
         database.commit()

@@ -75,8 +75,11 @@ export type CareTask = {
   recurrence?: TaskRecurrence;
   /** When it was marked complete; absent while the task is open. */
   completedAt?: string;
+  /** The lead: the first of assigneeIds, or null when nobody has the task. */
   assigneeId: string | null;
-  /** Assignee's first name, or "Unassigned". */
+  /** Everyone the task is given to, lead first. A task can be shared, such as homework for each child. */
+  assigneeIds: string[];
+  /** Their first names, e.g. "Chloe" or "Chloe & Max", or "Unassigned". */
   owner: string;
   initials: string;
   complete: boolean;
@@ -106,7 +109,10 @@ export type KnowledgeSearchResult = {
 };
 
 export type AssignmentSuggestion = {
+  /** The best placed; the first of memberIds. */
   memberId: string;
+  /** Usually one person; several when the task suits more than one. */
+  memberIds: string[];
   reason: string;
   /** Titles of the family notes the assistant was given. */
   noteTitles: string[];
@@ -176,6 +182,7 @@ export type FamilySchedule = {
 /** A suggestion from plain rules (schedule, role, workload), with no AI call. */
 export type QuickSuggestion = {
   memberId: string | null;
+  memberIds: string[];
   reason: string;
   /** Members with something on within an hour of the task's due time. */
   busyMemberIds: string[];
@@ -200,3 +207,8 @@ export type FamilyActivityItem = {
   /** When it happened, as an ISO timestamp. */
   at: string;
 };
+
+/** Whether this person is on the task, alone or sharing it. */
+export function isAssignedTo(task: Pick<CareTask, "assigneeIds">, memberId: string) {
+  return task.assigneeIds.includes(memberId);
+}

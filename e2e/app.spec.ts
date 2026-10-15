@@ -42,7 +42,7 @@ test("signing up, signing out and signing back in", async ({ page }) => {
   const email = await signUp(page);
   await page.getByRole("button", { name: /^Account menu for / }).click();
   await page.getByRole("button", { name: "Sign out" }).click();
-  await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Welcome", exact: true })).toBeVisible();
 
   // A wrong password is refused, and the right one gets back in.
   await page.getByLabel("Email address").fill(email);
@@ -141,4 +141,37 @@ test("a change on one person's screen appears on another's without reloading", a
   await addTask(page, "Buy cooking oil");
   await expect(other.locator("#tasks-panel article", { hasText: "Buy cooking oil" })).toBeVisible({ timeout: 25_000 });
   await otherBrowser.close();
+});
+
+test("sharing a task between two people, and giving someone a task from the Family page", async ({ page, browser }) => {
+  await signUp(page);
+  await page.getByRole("navigation", { name: "Main navigation" }).first().getByRole("link", { name: "Family" }).click();
+  const inviteCode = (await page.locator("code").first().textContent())?.trim() ?? "";
+  const otherBrowser = await browser.newContext();
+  await signUp(await otherBrowser.newPage(), "Ben Tester", inviteCode);
+  await otherBrowser.close();
+
+  // Ben's window on the Family page has a short form that puts a task straight on his list.
+  await page.reload();
+  await page.getByText("Ben Tester").first().click();
+  const member = page.getByRole("dialog");
+  await member.getByRole("button", { name: "Give Ben a task" }).click();
+  await member.getByLabel("What needs doing").fill("Fetch the groceries");
+  await member.getByRole("button", { name: "Add to Ben’s list" }).click();
+  await expect(member.getByRole("button", { name: /Fetch the groceries/ })).toBeVisible();
+  await member.getByRole("button", { name: "Close" }).click();
+
+  // On Tasks, Annie joins Ben on it, so it is shared by both.
+  await page.getByRole("navigation", { name: "Main navigation" }).first().getByRole("link", { name: "Tasks" }).click();
+  const row = page.locator("#tasks-panel article", { hasText: "Fetch the groceries" });
+  await row.getByRole("button", { name: /Change who does it/ }).click();
+  const picker = row.getByRole("group", { name: "Who does Fetch the groceries" });
+  await expect(picker.getByRole("button", { name: "Ben" })).toHaveAttribute("aria-pressed", "true");
+  await picker.getByRole("button", { name: "Annie" }).click();
+  await row.getByRole("button", { name: "Save" }).click();
+  await expect(row).toContainText("Ben & Annie");
+
+  // It now counts as Annie's too.
+  await page.getByRole("tab", { name: /^My Tasks/ }).click();
+  await expect(page.locator("#tasks-panel article", { hasText: "Fetch the groceries" })).toBeVisible();
 });

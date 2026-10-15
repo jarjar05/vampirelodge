@@ -222,7 +222,7 @@ def test_the_whole_due_day_reaches_the_assignment_prompt(family, feeds, fake_mod
     )
     assert member.put("/api/calendar", json={"url": FEED_URL}).status_code == 200
     task = admin.post("/api/families/me/tasks", json={"title": "School pickup", "due_at": due.isoformat()}).json()
-    fake_model.answer = {"member_id": admin.user_id, "reason": "Ben is busy then."}
+    fake_model.answer = {"member_ids": [admin.user_id], "reason": "Ben is busy then."}
 
     response = admin.post(f"/api/families/me/tasks/{task['id']}/suggestion?timezone=Asia/Singapore")
     assert response.status_code == 200, response.text
@@ -233,8 +233,8 @@ def test_the_whole_due_day_reaches_the_assignment_prompt(family, feeds, fake_mod
     assert prompt.count('"calendar_busy_on_task_day"') == 1
     assert prompt.count('"busy_at_task_time": true') == 1 and prompt.count('"busy_at_task_time": false') == 1
     # The busy member cannot be the answer at all.
-    assert fake_model.requests[0]["schema"]["properties"]["member_id"]["enum"] == [admin.user_id]
-    fake_model.answer = {"member_id": member.user_id, "reason": "Ignoring the clash."}
+    assert fake_model.requests[0]["schema"]["properties"]["member_ids"]["items"]["enum"] == [admin.user_id]
+    fake_model.answer = {"member_ids": [member.user_id], "reason": "Ignoring the clash."}
     assert admin.post(f"/api/families/me/tasks/{task['id']}/suggestion?timezone=Asia/Singapore").status_code == 503
     assert "Secret" not in prompt and "secret-token" not in prompt
     assert f"{due + timedelta(days=3):%A %d %B}" not in prompt
@@ -271,11 +271,11 @@ def test_availability_flags_only_people_busy_at_the_task_time(family, feeds, fak
     feeds.content["https://calendar.example.com/feeds/alice.ics"] = _feed(_event("alice", due + timedelta(minutes=30), due + timedelta(hours=1), "Dentist"))
     assert admin.put("/api/calendar", json={"url": "https://calendar.example.com/feeds/alice.ics"}).status_code == 200
     assert sorted(_busy(member, task)) == sorted([admin.user_id, member.user_id])
-    fake_model.answer = {"member_id": admin.user_id, "reason": "Fine."}
+    fake_model.answer = {"member_ids": [admin.user_id], "reason": "Fine."}
     admin.post(f"/api/families/me/tasks/{task['id']}/suggestion?timezone=Asia/Singapore")
     prompt = fake_model.requests[0]["prompt"]
     assert prompt.count('"busy_at_task_time": true') == 2 and "Dentist" not in prompt
-    assert sorted(fake_model.requests[0]["schema"]["properties"]["member_id"]["enum"]) == sorted([admin.user_id, member.user_id])
+    assert sorted(fake_model.requests[0]["schema"]["properties"]["member_ids"]["items"]["enum"]) == sorted([admin.user_id, member.user_id])
     admin.delete("/api/calendar")
     assert _busy(admin, task) == [member.user_id]
 

@@ -51,6 +51,29 @@ class Task(Base):
         cascade="all, delete-orphan",
         lazy="selectin",
     )
+    # Everyone the task is given to, in the order they were added. The first is also kept in assignee_id, the
+    # task's lead, so code that only needs one person still works. Change both with services.tasks.set_assignees.
+    assignees: Mapped[list["TaskAssignee"]] = relationship(
+        order_by="TaskAssignee.position",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+
+    @property
+    def assignee_ids(self) -> list[uuid.UUID]:
+        ids = [assignee.user_id for assignee in self.assignees]
+        # A task written before several people could share one still has only its lead.
+        return ids or ([self.assignee_id] if self.assignee_id else [])
+
+
+class TaskAssignee(Base):
+    """One person a task is given to. A task can be shared by several people, such as homework for each child."""
+
+    __tablename__ = "task_assignees"
+
+    task_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"), primary_key=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True, index=True)
+    position: Mapped[int] = mapped_column(nullable=False, default=0)
 
 
 class TaskActivity(Base):

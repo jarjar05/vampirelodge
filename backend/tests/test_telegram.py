@@ -45,7 +45,7 @@ def drafting(monkeypatch):
     def suggest_assignee(database, task, zone=timezone.utc):
         if model.suggest is None:
             raise llm.LLMUnavailable("not set up")
-        return assignment.AssignmentSuggestion(member_id=uuid.UUID(model.suggest), reason="Free then, with the fewest tasks.", note_titles=[])
+        return assignment.AssignmentSuggestion(member_ids=[uuid.UUID(model.suggest)], reason="Free then, with the fewest tasks.", note_titles=[])
 
     monkeypatch.setattr(document_tasks, "draft_tasks", draft_tasks)
     monkeypatch.setattr(assignment, "suggest_assignee", suggest_assignee)

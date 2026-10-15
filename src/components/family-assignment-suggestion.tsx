@@ -4,12 +4,14 @@ import { careApi } from "@/api/care";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { AssigneeFaces, AssigneePicker, joinFirstNames } from "@/components/assignee-picker";
 import { FamilyAvatar } from "@/components/family-avatar";
-import type { AssignmentSuggestion, CareTask, FamilyMember } from "@/types/care";
+import { isAssignedTo, type AssignmentSuggestion, type CareTask, type FamilyMember } from "@/types/care";
 import { cn } from "@/lib/utils";
 
 export type AssignmentRecommendation = {
-  memberId: string;
+  /** One person, or several for a task that suits more than one, best placed first. */
+  memberIds: string[];
   reason: string;
 };
 
@@ -26,7 +28,7 @@ export function mockAssignmentRecommendation(
   busyMemberIds: ReadonlySet<string> = new Set(),
 ): AssignmentRecommendation {
   const workload = (member: FamilyMember) => tasks.filter(
-    (task) => !task.complete && task.assigneeId === member.id,
+    (task) => !task.complete && isAssignedTo(task, member.id),
   ).length;
   // People who are busy at the task's time are left out, unless that leaves nobody.
   const freeMembers = members.filter((member) => !busyMemberIds.has(member.id));
@@ -37,7 +39,7 @@ export function mockAssignmentRecommendation(
   const skippedSomeone = freeMembers.length > 0 && freeMembers.length < members.length;
 
   return {
-    memberId: suggestedMember.id,
+    memberIds: [suggestedMember.id],
     reason: freeMembers.length === 0
       ? "Everyone has something on at that time; this person has the lightest workload."
       : skippedSomeone
@@ -77,11 +79,10 @@ export function FamilyAssignmentSuggestion({
   tasks: readonly CareTask[];
   members: readonly FamilyMember[];
   recommendationEngine?: AssignmentRecommendationEngine;
-  onAssign: (memberId: string) => void;
+  onAssign: (memberIds: string[]) => void;
   className?: string;
 }) {
   const [choosingAnother, setChoosingAnother] = useState(false);
-  const [selectedMember, setSelectedMember] = useState("");
   const [ai, setAi] = useState<AiState>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
 
@@ -107,12 +108,15 @@ export function FamilyAssignmentSuggestion({
 
   // The schedule-and-workload rule is the fallback whenever the model cannot answer.
   const ruleBased = recommendationEngine(members, tasks, busyMemberIds);
-  const aiMember = ai.status === "ready" ? members.find((member) => member.id === ai.suggestion.memberId) : undefined;
-  const recommendation = aiMember && ai.status === "ready" ? { memberId: aiMember.id, reason: ai.suggestion.reason } : ruleBased;
-  const suggestedMember = members.find((member) => member.id === recommendation.memberId) ?? members[0];
-  const noteTitles = aiMember && ai.status === "ready" ? ai.suggestion.noteTitles : [];
+  const byId = (ids: readonly string[]) => ids.map((id) => members.find((member) => member.id === id)).filter((member): member is FamilyMember => Boolean(member));
+  const aiMembers = ai.status === "ready" ? byId(ai.suggestion.memberIds) : [];
+  const fromAi = aiMembers.length > 0;
+  const recommendation = fromAi && ai.status === "ready" ? { memberIds: aiMembers.map((member) => member.id), reason: ai.suggestion.reason } : ruleBased;
+  const suggestedMembers = byId(recommendation.memberIds);
+  const suggestedMember = suggestedMembers[0];
+  const noteTitles = fromAi && ai.status === "ready" ? ai.suggestion.noteTitles : [];
   const activeTaskCount = (member: FamilyMember) => tasks.filter(
-    (item) => !item.complete && item.assigneeId === member.id,
+    (item) => !item.complete && isAssignedTo(item, member.id),
   ).length;
 
   return (
@@ -149,7 +153,7 @@ export function FamilyAssignmentSuggestion({
         <div className="rounded-lg bg-primary/5 p-4 sm:p-5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.1em] text-primary"><Sparkles size={14} aria-hidden="true" />Suggested assignment</div>
-            {ai.status !== "loading" && <Badge variant={aiMember ? "default" : "outline"}>{aiMember ? "AI suggestion" : busyMemberIds.size > 0 ? "Based on schedule and workload" : "Based on workload"}</Badge>}
+            {ai.status !== "loading" && <Badge variant={fromAi ? "default" : "outline"}>{fromAi ? "AI suggestion" : busyMemberIds.size > 0 ? "Based on schedule and workload" : "Based on workload"}</Badge>}
           </div>
           {ai.status === "loading" && (
             <div role="status" className="mt-3 flex items-center gap-3">
@@ -163,14 +167,16 @@ export function FamilyAssignmentSuggestion({
           {ai.status !== "loading" && suggestedMember && (
             <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-center">
               <div className="flex min-w-0 flex-1 items-center gap-3">
-                <FamilyAvatar initials={suggestedMember.initials} tone={suggestedMember.tone} imageUrl={suggestedMember.avatarUrl} className="size-11" />
+                {suggestedMembers.length > 1
+                  ? <AssigneeFaces members={suggestedMembers} />
+                  : <FamilyAvatar initials={suggestedMember.initials} tone={suggestedMember.tone} imageUrl={suggestedMember.avatarUrl} className="size-11" />}
                 <div className="min-w-0">
-                  <p className="text-base font-semibold">{suggestedMember.name}</p>
+                  <p className="text-base font-semibold">{suggestedMembers.length > 1 ? joinFirstNames(suggestedMembers) : suggestedMember.name}</p>
                   <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{recommendation.reason}</p>
                 </div>
               </div>
-              <Button className="shrink-0" onClick={() => onAssign(suggestedMember.id)}>
-                Assign to {suggestedMember.firstName} <ArrowRight size={15} aria-hidden="true" />
+              <Button className="shrink-0" onClick={() => onAssign(suggestedMembers.map((member) => member.id))}>
+                Assign to {joinFirstNames(suggestedMembers)} <ArrowRight size={15} aria-hidden="true" />
               </Button>
             </div>
           )}
@@ -183,26 +189,18 @@ export function FamilyAssignmentSuggestion({
           )}
           <div className="mt-3 border-t border-primary/10 pt-3">
             {!choosingAnother ? (
-              <Button variant="outline" size="sm" onClick={() => setChoosingAnother(true)}>Choose someone else</Button>
+              <Button variant="outline" size="sm" onClick={() => setChoosingAnother(true)}>Choose someone else, or more people</Button>
             ) : (
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <label className="sr-only" htmlFor={`assignment-choice-${task.id}`}>Choose a family member</label>
-                <select
-                  id={`assignment-choice-${task.id}`}
-                  value={selectedMember}
-                  onChange={(event) => setSelectedMember(event.target.value)}
-                  className="min-h-9 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                >
-                  <option value="">Select a family member</option>
-                  {members.map((member) => {
-                    // Busy members cannot be picked here, unless everyone is busy.
-                    const isBusy = busyMemberIds.has(member.id) && busyMemberIds.size < members.length;
-                    return <option key={member.id} value={member.id} disabled={isBusy}>{member.name}{isBusy ? " (busy at that time)" : ""}</option>;
-                  })}
-                </select>
-                <Button size="sm" disabled={!selectedMember} onClick={() => onAssign(selectedMember)}>Assign selected member</Button>
-                <Button size="sm" variant="ghost" onClick={() => setChoosingAnother(false)}>Cancel</Button>
-              </div>
+              <AssigneePicker
+                className="bg-card"
+                members={members}
+                current={task.assigneeIds}
+                preset={recommendation.memberIds}
+                busyMemberIds={busyMemberIds}
+                label="Choose who does it"
+                onSave={onAssign}
+                onCancel={() => setChoosingAnother(false)}
+              />
             )}
           </div>
         </div>

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ChevronDown } from "lucide-react";
 import { countries, joinPhoneNumber, rememberCountry, splitPhoneNumber } from "@/lib/countries";
 import { cn } from "@/lib/utils";
 
@@ -31,6 +32,10 @@ export function PhoneInput({
 
   return (
     <span className="flex gap-2">
+      {/* The box shows just the code, e.g. "SG +65", so it never cuts off; the list itself names each country. */}
+      <span className={cn(className, "relative flex w-[6.9rem] shrink-0 items-center justify-between gap-1 focus-within:border-primary focus-within:shadow-[0_0_0_4px_color-mix(in_srgb,var(--primary)_14%,transparent)]")}>
+        <span aria-hidden="true" className="truncate font-bold">{selectedCountry.code} +{selectedCountry.dialCode}</span>
+        <ChevronDown size={15} aria-hidden="true" className="shrink-0 text-muted-foreground" />
       <select
         aria-label="Country code"
         autoComplete="tel-country-code"
@@ -41,10 +46,11 @@ export function PhoneInput({
           rememberCountry(next);
           onChange(joinPhoneNumber(next, nationalNumber));
         }}
-        className={cn(className, "w-[7.25rem] shrink-0 px-2")}
+        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
       >
         {countries.map((item) => <option key={item.code} value={item.code}>+{item.dialCode} {item.name}</option>)}
       </select>
+      </span>
       <input
         id={id}
         name="phone"

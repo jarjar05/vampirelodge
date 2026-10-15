@@ -173,10 +173,10 @@ export function ProfileSettingsDialog({
           <legend className="float-left mb-1 w-full text-sm font-semibold">Sign-in details</legend>
           <p className="clear-both text-xs text-muted-foreground">You can sign in with your email or your phone number.</p>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <label className="text-sm font-medium">Email
+            <label className="text-sm font-medium sm:col-span-2">Email
               <input required type="email" maxLength={320} autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} className={fieldClassName} />
             </label>
-            <label className="text-sm font-medium" htmlFor="profile-phone">Phone number <span className="font-normal text-muted-foreground">(optional)</span>
+            <label className="text-sm font-medium sm:col-span-2" htmlFor="profile-phone">Phone number <span className="font-normal text-muted-foreground">(optional)</span>
               <PhoneInput id="profile-phone" defaultValue={currentUser.phone} onChange={setPhone} className={fieldClassName} />
             </label>
             <label className="text-sm font-medium">New password

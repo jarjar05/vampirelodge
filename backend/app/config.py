@@ -47,7 +47,7 @@ def get_settings() -> Settings:
         chroma_path = BACKEND_DIR / chroma_path
 
     return Settings(
-        app_name=os.getenv("APP_NAME", "Family Care Coordinator API"),
+        app_name=os.getenv("APP_NAME", "CareCircle API"),
         environment=os.getenv("ENVIRONMENT", "development"),
         frontend_origin=os.getenv("FRONTEND_ORIGIN", "http://localhost:5173"),
         database_url=_resolve_database_url(os.getenv("DATABASE_URL", DEFAULT_DATABASE_URL)),

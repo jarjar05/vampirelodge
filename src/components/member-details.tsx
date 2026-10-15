@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { CheckCircle2, Clock3, MapPin, Repeat, X } from "lucide-react";
+import { CheckCircle2, Clock3, MapPin, Plus, Repeat, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { DatePicker, TimePicker } from "@/components/ui/date-time-picker";
 import { FamilyAvatar, toneColours } from "@/components/family-avatar";
 import { type CareData } from "@/hooks/use-care-data";
-import { formatRelative } from "@/lib/dates";
+import { formatRelative, getLocalDateInputValue, localInputsToIso } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 import { TaskDetails } from "@/pages/tasks-page";
-import { recurrencePhrases, type CareTask, type FamilyMember } from "@/types/care";
+import {
+  isAssignedTo, recurrencePhrases, type CareTask, type FamilyMember } from "@/types/care";
 
 const dayMs = 24 * 60 * 60_000;
 
@@ -43,6 +46,7 @@ export function MemberDetails({ care, memberId, onClose }: { care: CareData; mem
 
 function MemberDialog({ care, member, onOpenTask, onClose }: { care: CareData; member: FamilyMember; onOpenTask: (taskId: string) => void; onClose: () => void }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const [isAdding, setIsAdding] = useState(false);
   useEffect(() => {
     const dialog = dialogRef.current;
     if (dialog && !dialog.open) dialog.showModal();
@@ -50,7 +54,7 @@ function MemberDialog({ care, member, onOpenTask, onClose }: { care: CareData; m
 
   const now = Date.now();
   const endOfToday = new Date(new Date().setHours(24, 0, 0, 0)).getTime();
-  const mine = care.tasks.filter((task) => task.assigneeId === member.id);
+  const mine = care.tasks.filter((task) => isAssignedTo(task, member.id));
   // Overdue first, then soonest due; anything without a date last.
   const open = mine
     .filter((task) => !task.complete)
@@ -61,8 +65,8 @@ function MemberDialog({ care, member, onOpenTask, onClose }: { care: CareData; m
     .filter((task) => task.complete && task.completedAt && now - new Date(task.completedAt).getTime() <= 30 * dayMs)
     .sort((first, second) => (second.completedAt ?? "").localeCompare(first.completedAt ?? ""));
   const onTime = done.filter((task) => !task.dueAt || new Date(task.completedAt!).getTime() <= new Date(task.dueAt).getTime()).length;
-  const familyOpen = care.tasks.filter((task) => !task.complete && task.assigneeId).length;
-  const loads = care.members.map((person) => care.tasks.filter((task) => !task.complete && task.assigneeId === person.id).length);
+  const familyOpen = care.tasks.filter((task) => !task.complete && task.assigneeIds.length > 0).length;
+  const loads = care.members.map((person) => care.tasks.filter((task) => !task.complete && isAssignedTo(task, person.id)).length);
   const heaviest = Math.max(1, ...loads);
   const average = loads.length ? loads.reduce((sum, load) => sum + load, 0) / loads.length : 0;
   const colour = toneColours[member.tone];
@@ -130,7 +134,15 @@ function MemberDialog({ care, member, onOpenTask, onClose }: { care: CareData; m
         </section>
 
         <section aria-labelledby="member-open-title" className="mt-5">
-          <h3 id="member-open-title" className="text-sm font-extrabold">On their list</h3>
+          <div className="flex items-center justify-between gap-3">
+            <h3 id="member-open-title" className="text-sm font-extrabold">On their list</h3>
+            {!isAdding && (
+              <button type="button" onClick={() => setIsAdding(true)} className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold text-primary hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                <Plus size={14} aria-hidden="true" />Give {member.firstName} a task
+              </button>
+            )}
+          </div>
+          {isAdding && <NewTaskForMember care={care} member={member} onDone={() => setIsAdding(false)} />}
           {open.length === 0
             ? <p className="mt-2 rounded-2xl bg-muted px-4 py-3 text-sm text-muted-foreground">No open tasks.</p>
             : (
@@ -179,5 +191,73 @@ function MemberDialog({ care, member, onOpenTask, onClose }: { care: CareData; m
         )}
       </div>
     </dialog>
+  );
+}
+
+const fieldClassName = "mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm font-normal focus:outline-none focus:ring-2 focus:ring-ring";
+const priorities: CareTask["priority"][] = ["High", "Normal", "Low"];
+
+/** A short form for a task that goes straight onto this person's list. */
+function NewTaskForMember({ care, member, onDone }: { care: CareData; member: FamilyMember; onDone: () => void }) {
+  const [title, setTitle] = useState("");
+  const [detail, setDetail] = useState("");
+  const [date, setDate] = useState(() => getLocalDateInputValue());
+  const [time, setTime] = useState("18:00");
+  const [priority, setPriority] = useState<CareTask["priority"]>("Normal");
+  const [isSaving, setIsSaving] = useState(false);
+
+  const submit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setIsSaving(true);
+    const created = await care.createTask({
+      title: title.trim(),
+      detail: detail.trim(),
+      dueAt: localInputsToIso(date, time),
+      priority,
+      recurrence: null,
+      assigneeIds: [member.id],
+    });
+    setIsSaving(false);
+    if (created) onDone();
+  };
+
+  return (
+    <form onSubmit={submit} aria-label={`New task for ${member.firstName}`} className="mt-2 grid gap-3 rounded-2xl border border-primary/25 bg-primary/5 p-3.5 sm:grid-cols-2">
+      <label className="text-sm font-semibold sm:col-span-2">What needs doing
+        <input autoFocus required maxLength={100} value={title} onChange={(event) => setTitle(event.target.value)} className={fieldClassName} />
+      </label>
+      <label className="text-sm font-semibold sm:col-span-2">Details <span className="font-normal text-muted-foreground">(optional)</span>
+        <textarea rows={2} maxLength={500} value={detail} onChange={(event) => setDetail(event.target.value)} className={fieldClassName} />
+      </label>
+      <div className="text-sm font-semibold">
+        <span id="member-task-date-label">Due date</span>
+        <DatePicker labelledBy="member-task-date-label" min={getLocalDateInputValue()} value={date} onChange={setDate} />
+      </div>
+      <div className="text-sm font-semibold">
+        <span id="member-task-time-label">Time</span>
+        <TimePicker labelledBy="member-task-time-label" value={time} onChange={setTime} />
+      </div>
+      <div className="text-sm font-semibold sm:col-span-2">
+        <span id="member-task-priority-label">Priority</span>
+        <div role="radiogroup" aria-labelledby="member-task-priority-label" className="mt-1.5 grid grid-cols-3 gap-1 rounded-lg border border-border bg-muted/60 p-1">
+          {priorities.map((option) => (
+            <button
+              key={option}
+              type="button"
+              role="radio"
+              aria-checked={priority === option}
+              onClick={() => setPriority(option)}
+              className={cn("flex items-center justify-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", priority === option ? "bg-card text-foreground shadow-sm ring-1 ring-primary/40" : "text-muted-foreground hover:text-foreground")}
+            >
+              <span aria-hidden="true" className={cn("size-2 rounded-full", priorityDots[option])} />{option}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="flex justify-end gap-2 sm:col-span-2">
+        <Button type="button" size="sm" variant="ghost" onClick={onDone}>Cancel</Button>
+        <Button type="submit" size="sm" disabled={isSaving || !title.trim()}>Add to {member.firstName}’s list</Button>
+      </div>
+    </form>
   );
 }

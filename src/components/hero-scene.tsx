@@ -34,16 +34,20 @@ function wavePath(width: number, y: (x: number) => number) {
 const nearGround = wavePath(LENGTH, groundY);
 const farHills = wavePath(FAR_LENGTH, farY);
 
-const wood = "#8a6a4f";
-const leaf = "color-mix(in srgb, var(--sage) 78%, #1f3a26)";
-const leafLight = "color-mix(in srgb, var(--sage) 92%, white)";
+export const wood = "#8a6a4f";
+export const leaf = "color-mix(in srgb, var(--sage) 78%, #1f3a26)";
+export const leafLight = "color-mix(in srgb, var(--sage) 92%, white)";
+
+/** The shape of the ground the parts below stand on: the countryside's by default, or another scene's. */
+export const GroundContext = createContext<(x: number) => number>(groundY);
 
 /** Something standing on the ground at `x`. */
-function At({ x, children }: { x: number; children: React.ReactNode }) {
-  return <g transform={`translate(${x},${groundY(x).toFixed(1)})`}>{children}</g>;
+export function At({ x, children }: { x: number; children: React.ReactNode }) {
+  const ground = useContext(GroundContext);
+  return <g transform={`translate(${x},${ground(x).toFixed(1)})`}>{children}</g>;
 }
 
-function Tree({ x, size = 1, delay = 0 }: { x: number; size?: number; delay?: number }) {
+export function Tree({ x, size = 1, delay = 0 }: { x: number; size?: number; delay?: number }) {
   return (
     <At x={x}>
       <g transform={`scale(${size})`}>
@@ -59,7 +63,7 @@ function Tree({ x, size = 1, delay = 0 }: { x: number; size?: number; delay?: nu
   );
 }
 
-function Flowers({ x, colours }: { x: number; colours: string[] }) {
+export function Flowers({ x, colours }: { x: number; colours: string[] }) {
   return (
     <At x={x}>
       {colours.map((colour, index) => (
@@ -72,7 +76,7 @@ function Flowers({ x, colours }: { x: number; colours: string[] }) {
   );
 }
 
-function Window({ x, y, size = 12 }: { x: number; y: number; size?: number }) {
+export function Window({ x, y, size = 12 }: { x: number; y: number; size?: number }) {
   return <rect className="scene-window" x={x} y={y} width={size} height={size} rx={2} />;
 }
 
@@ -92,14 +96,15 @@ function Home({ x }: { x: number }) {
   );
 }
 
-function Fence({ x, length }: { x: number; length: number }) {
+export function Fence({ x, length }: { x: number; length: number }) {
+  const ground = useContext(GroundContext);
   const posts = Array.from({ length: Math.floor(length / 13) + 1 }, (_unused, index) => index * 13);
   return (
     <g>
       {posts.map((post) => (
         <At key={post} x={x + post}><rect x={-1.5} y={-16} width={3} height={17} rx={1} fill="var(--card)" opacity={0.9} /></At>
       ))}
-      <path d={`M${x},${groundY(x) - 11} L${x + length},${groundY(x + length) - 11} M${x},${groundY(x) - 5} L${x + length},${groundY(x + length) - 5}`} stroke="var(--card)" strokeWidth={2} opacity={0.9} />
+      <path d={`M${x},${ground(x) - 11} L${x + length},${ground(x + length) - 11} M${x},${ground(x) - 5} L${x + length},${ground(x + length) - 5}`} stroke="var(--card)" strokeWidth={2} opacity={0.9} />
     </g>
   );
 }
@@ -152,7 +157,7 @@ function Bench({ x }: { x: number }) {
   );
 }
 
-function Butterflies({ x }: { x: number }) {
+export function Butterflies({ x }: { x: number }) {
   return (
     <At x={x}>
       {[0, 1].map((index) => (
@@ -192,7 +197,7 @@ function Lamp({ x }: { x: number }) {
   );
 }
 
-function Cat({ x }: { x: number }) {
+export function Cat({ x }: { x: number }) {
   return (
     <At x={x}>
       <path className="scene-tail" d="M7,-3 C16,-4 16,-14 12,-18" stroke="#3b302a" strokeWidth={2.5} fill="none" strokeLinecap="round" />
@@ -416,7 +421,7 @@ function FarStrip() {
   );
 }
 
-function Bird({ top, duration, delay, scale = 1 }: { top: string; duration: number; delay: number; scale?: number }) {
+export function Bird({ top, duration, delay, scale = 1 }: { top: string; duration: number; delay: number; scale?: number }) {
   return (
     <span className="scene-bird" style={{ top, animationDuration: `${duration}s`, animationDelay: `${delay}s` }}>
       <span className="scene-bird-bob" style={{ animationDelay: `${delay / 3}s` }}>
@@ -430,7 +435,7 @@ function Bird({ top, duration, delay, scale = 1 }: { top: string; duration: numb
   );
 }
 
-function Cloud({ top, scale, duration, delay }: { top: string; scale: number; duration: number; delay: number }) {
+export function Cloud({ top, scale, duration, delay }: { top: string; scale: number; duration: number; delay: number }) {
   return (
     <span className="scene-cloud" style={{ top, animationDuration: `${duration}s`, animationDelay: `${delay}s` }}>
       <svg width={110 * scale} height={40 * scale} viewBox="0 0 110 40">
@@ -474,12 +479,13 @@ function swingKeyframes(name: string, swing: number, duration: number, step: num
  * its <Limb>s swing in step while it walks. The walk is written out as CSS animations, so it keeps going through
  * any re-render, and every part of it starts together.
  */
-function Walker({ x, distance, duration, delay = 0, shadow = 9, step = 300, children }: { x: number; distance: number; duration: number; delay?: number; shadow?: number; step?: number; children: React.ReactNode }) {
+export function Walker({ x, distance, duration, delay = 0, shadow = 9, step = 300, children }: { x: number; distance: number; duration: number; delay?: number; shadow?: number; step?: number; children: React.ReactNode }) {
   const name = `walk-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
+  const ground = useContext(GroundContext);
   const path = Array.from({ length: 41 }, (_unused, index) => {
     const offset = index / 40;
     const dx = along(offset) * distance;
-    return `${pct(offset)} { transform: translate(${dx.toFixed(1)}px, ${(groundY(x + dx) - groundY(x)).toFixed(2)}px); }`;
+    return `${pct(offset)} { transform: translate(${dx.toFixed(1)}px, ${(ground(x + dx) - ground(x)).toFixed(2)}px); }`;
   }).join(" ");
   const css = [
     `@keyframes ${name}-path { ${path} }`,
@@ -505,13 +511,13 @@ function Walker({ x, distance, duration, delay = 0, shadow = 9, step = 300, chil
  * An arm or leg that swings from its top while its Walker is moving, and hangs still whenever it stops. `side` "a"
  * swings opposite to "b". Outside a Walker it simply hangs.
  */
-function Limb({ side, swing, children }: { side: "a" | "b"; swing: Swing; children: React.ReactNode }) {
+export function Limb({ side, swing, children }: { side: "a" | "b"; swing: Swing; children: React.ReactNode }) {
   const walk = useContext(WalkContext);
   return <g className={walk ? `scene-limb ${walk}` : "scene-limb"} style={walk ? { animationName: `${walk}-${side}${swing}` } : undefined}>{children}</g>;
 }
 
 /** A soft shadow on the grass, so whoever stands here is plainly on the ground. */
-function Shadow({ width }: { width: number }) {
+export function Shadow({ width }: { width: number }) {
   return <ellipse cx={0} cy={1} rx={width} ry={2.2} className="scene-shadow" />;
 }
 
@@ -519,6 +525,15 @@ function Shadow({ width }: { width: number }) {
 function PlayingDog({ x }: { x: number }) {
   return (
     <Walker x={x} distance={120} duration={9000} shadow={17} step={180}>
+      <DogDrawing />
+    </Walker>
+  );
+}
+
+/** The family dog, standing with its paws at (0,0) and facing right. Its legs swing while a Walker moves it. */
+export function DogDrawing() {
+  return (
+    <>
       <g transform="translate(-23,-24)">
         <path className="scene-dog-tail" d="M6,10 Q0,4 2,0" stroke="#a0714f" strokeWidth={3} fill="none" strokeLinecap="round" />
         <Limb side="a" swing={30}><rect x={8} y={14} width={4} height={12} rx={2} fill="#8f6243" /></Limb>
@@ -532,11 +547,11 @@ function PlayingDog({ x }: { x: number }) {
         <circle cx={39.5} cy={5} r={1.1} fill="#2d241c" />
         <circle cx={45.5} cy={7.5} r={1.3} fill="#2d241c" />
       </g>
-    </Walker>
+    </>
   );
 }
 
-type Look = { shirt: string; skin: string; hair: string; trousers?: string };
+export type Look = { shirt: string; skin: string; hair: string; trousers?: string };
 
 /**
  * A person standing on the ground at their feet (0,0), facing right. When `walking`, the legs and the far arm swing
@@ -544,7 +559,7 @@ type Look = { shirt: string; skin: string; hair: string; trousers?: string };
  * at the hand, with the arm at rest (`reach` turns it forward, in degrees, about the shoulder; `hand={null}` holds
  * something drawn elsewhere). `nearArm` replaces the near arm altogether, for a gesture of its own.
  */
-function Figure({ look, walking = false, reach = 0, hand, nearArm, children }: { look: Look; walking?: boolean; reach?: number; hand?: React.ReactNode; nearArm?: React.ReactNode; children?: React.ReactNode }) {
+export function Figure({ look, walking = false, reach = 0, hand, nearArm, children }: { look: Look; walking?: boolean; reach?: number; hand?: React.ReactNode; nearArm?: React.ReactNode; children?: React.ReactNode }) {
   const legs = look.trousers ?? "#4a3d36";
   // Swings while walking; otherwise just hangs (or, for a standing foot, taps).
   const limb = (side: "a" | "b", swing: Swing, part: React.ReactNode, still?: string) =>
@@ -567,7 +582,7 @@ function Figure({ look, walking = false, reach = 0, hand, nearArm, children }: {
 }
 
 /** A person sitting on a bench whose seat is at the ground position given, facing right. */
-function Sitting({ look, children }: { look: Look; children?: React.ReactNode }) {
+export function Sitting({ look, children }: { look: Look; children?: React.ReactNode }) {
   const legs = look.trousers ?? "#4a3d36";
   return (
     <g>
@@ -584,7 +599,7 @@ function Sitting({ look, children }: { look: Look; children?: React.ReactNode })
   );
 }
 
-const people = {
+export const people = {
   shopper: { shirt: "var(--teal)", skin: "#c98e64", hair: "#2d241c" },
   waiting: { shirt: "var(--plum)", skin: "#f1c7a5", hair: "#7a4b2a", trousers: "#38465c" },
   child: { shirt: "var(--mustard)", skin: "#8d5a3b", hair: "#1f1712", trousers: "#5b8fc7" },
@@ -734,15 +749,18 @@ export function HeroScene({ index }: { index: number }) {
       <span className="hero-sun moon" />
       <span className="scene-stars" />
       <span className="scene-shooting-star" />
-      <Cloud top="14%" scale={0.9} duration={95} delay={-20} />
-      <Cloud top="34%" scale={0.6} duration={130} delay={-75} />
-      <Cloud top="8%" scale={0.7} duration={115} delay={-55} />
-      <div className="scene-birds">
-        <Bird top="18%" duration={26} delay={-4} />
-        <Bird top="22%" duration={26} delay={-3.2} scale={0.8} />
-        <Bird top="15%" duration={26} delay={-2.5} scale={0.7} />
-        <Bird top="40%" duration={34} delay={-21} scale={0.85} />
-        <Bird top="44%" duration={34} delay={-20.2} scale={0.7} />
+      {/* Clouds and birds keep to the upper right of the sky, clear of the page's title and words. */}
+      <div className="scene-sky">
+        <Cloud top="6%" scale={0.9} duration={95} delay={-20} />
+        <Cloud top="20%" scale={0.6} duration={130} delay={-75} />
+        <Cloud top="1%" scale={0.7} duration={115} delay={-55} />
+        <div className="scene-birds">
+          <Bird top="11%" duration={26} delay={-4} />
+          <Bird top="14%" duration={26} delay={-3.2} scale={0.8} />
+          <Bird top="8%" duration={26} delay={-2.5} scale={0.7} />
+          <Bird top="22%" duration={34} delay={-21} scale={0.85} />
+          <Bird top="25%" duration={34} delay={-20.2} scale={0.7} />
+        </div>
       </div>
       {/* Each layer is pinned at the focus point, two thirds across, and framed so the page's place sits on it. */}
       <div className="scene-anchor scene-far">

@@ -3,7 +3,7 @@ import { BookOpen, Plus, Search, Trash2 } from "lucide-react";
 import { careApi } from "@/api/care";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { PageHeader } from "@/components/page-parts";
+import { BannerButton, PageHeader } from "@/components/page-parts";
 import type { KnowledgeDocument, KnowledgeSearchResult } from "@/types/care";
 
 const fieldClassName = "mt-1.5 w-full rounded-md border border-input bg-background px-3.5 py-2.5 text-sm font-normal focus:outline-none";
@@ -110,8 +110,8 @@ export function KnowledgePage() {
       <PageHeader
         eyebrow="What the family knows"
         title={<>Family <em>notes</em></>}
-        lead="Care plans, medication lists and who usually does what. The assistant reads the relevant ones when it suggests who should take a task."
-        actions={<Button onClick={() => setIsAdding((current) => !current)}><Plus size={15} aria-hidden="true" />Add a note</Button>}
+        lead="Care plans, medicines and who does what. The assistant reads these when it suggests who should help."
+        actions={<BannerButton icon={Plus} aria-expanded={isAdding} onClick={() => setIsAdding((current) => !current)}>Add a note</BannerButton>}
       />
 
       {errorMessage && <p role="alert" className="mb-5 rounded-2xl bg-alert/10 px-4 py-3 text-sm text-alert">{errorMessage}</p>}

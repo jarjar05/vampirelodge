@@ -106,15 +106,16 @@ def test_quick_suggestion_follows_schedule_role_and_workload(family, login, monk
     member.patch(f"/api/families/me/members/{member.user_id}", json={"relationship_label": "Son"})
 
     due = _in(2)
-    task = _task(admin, due_at=due.isoformat())
+    # A title that says nothing about who suits it, so only schedule, role and workload decide.
+    task = _task(admin, title="Sort out the post", due_at=due.isoformat())
     # Alice and Ben are both working-age relatives; Alice carries more, so Ben is suggested over the idle grandmother.
     _task(admin, title="Alice's", assignee_id=admin.user_id)
-    assert _quick(admin, task) == {"member_id": member.user_id, "reason": "Has the fewest open tasks.", "busy_member_ids": []}
+    assert _quick(admin, task) == {"member_id": member.user_id, "member_ids": [member.user_id], "reason": "Has the fewest open tasks.", "busy_member_ids": []}
 
     # Ben's calendar shows him busy then, so it falls to Alice, still ahead of the helper and the grandmother.
     monkeypatch.setattr(calendar_feed, "_download", lambda url: _feed_with_event(due - timedelta(minutes=30), due + timedelta(hours=1)))
     assert member.put("/api/calendar", json={"url": FEED}).status_code == 200
-    assert _quick(admin, task) == {"member_id": admin.user_id, "reason": "Free at that time, with the fewest open tasks.", "busy_member_ids": [member.user_id]}
+    assert _quick(admin, task) == {"member_id": admin.user_id, "member_ids": [admin.user_id], "reason": "Free at that time, with the fewest open tasks.", "busy_member_ids": [member.user_id]}
 
     # With both relatives out, the helper comes before the grandmother.
     admin.patch(f"/api/families/me/members/{admin.user_id}", json={"availability": "Away today"})

@@ -1,14 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 
-/** Open/close state for a dropdown that closes on Escape or a click outside it. */
+/**
+ * Open/close state for a dropdown that closes on Escape or a click outside it. A panel drawn elsewhere in the page
+ * (in a portal) counts as inside when it is attached to `panelRef`.
+ */
 export function usePopover<T extends HTMLElement = HTMLDivElement>() {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<T>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!isOpen) return;
     const closeOnOutsideClick = (event: MouseEvent) => {
-      if (!containerRef.current?.contains(event.target as Node)) setIsOpen(false);
+      const target = event.target as Node;
+      if (!containerRef.current?.contains(target) && !panelRef.current?.contains(target)) setIsOpen(false);
     };
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
@@ -25,5 +30,5 @@ export function usePopover<T extends HTMLElement = HTMLDivElement>() {
     };
   }, [isOpen]);
 
-  return { isOpen, containerRef, toggle: () => setIsOpen((current) => !current), close: () => setIsOpen(false) };
+  return { isOpen, containerRef, panelRef, toggle: () => setIsOpen((current) => !current), close: () => setIsOpen(false) };
 }

@@ -9,7 +9,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import Task
-from app.services.tasks import record_activity
+from app.services.tasks import record_activity, set_assignees
 
 RECURRENCES = ("daily", "weekly", "biweekly", "monthly")
 LABELS = {"daily": "every day", "weekly": "every week", "biweekly": "every 2 weeks", "monthly": "every month"}
@@ -62,12 +62,13 @@ def _schedule_next(database: Session, latest: Task, now: datetime) -> Task | Non
         location=latest.location,
         # Later than both the last one and now, so a long gap does not produce a pile of missed occurrences.
         due_at=next_due(anchor, max(latest.due_at, now), latest.recurrence),
-        assignee_id=latest.assignee_id,
         priority=latest.priority,
         created_by_id=latest.created_by_id,
         recurrence=latest.recurrence,
         series_id=latest.series_id,
     )
+    # The next one goes to the same people.
+    set_assignees(following, latest.assignee_ids)
     database.add(following)
     record_activity(following, latest.created_by_id, "Created", f"Repeats {LABELS[latest.recurrence]}")
     return following

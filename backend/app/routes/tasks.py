@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies.auth import AuthenticatedUser
 from app.dependencies.family import FamilyMemberContext
-from app.models import Task, TaskActivity
+from app.models import Task, TaskActivity, User
 from app.schemas.task import (
     AskRequest,
     AskResponse,
@@ -34,7 +34,7 @@ from app.schemas.task import (
 )
 from app.services import assignment, day_plan, document_tasks, family_assistant, recurrence, telegram_bot
 from app.services.llm import LLMUnavailable
-from app.services.tasks import get_family_member, record_activity
+from app.services.tasks import get_family_member, join_names, record_activity, set_assignees
 
 router = APIRouter(prefix="/api/families/me", tags=["tasks"])
 DatabaseSession = Annotated[Session, Depends(get_db)]
@@ -60,6 +60,7 @@ def _task_response(task: Task) -> TaskResponse:
         location=task.location,
         due_at=task.due_at,
         assignee_id=task.assignee_id,
+        assignee_ids=task.assignee_ids,
         priority=task.priority,
         status=task.status,
         created_at=task.created_at,
@@ -67,6 +68,17 @@ def _task_response(task: Task) -> TaskResponse:
         recurrence=task.recurrence,
         activity=[_activity_response(activity) for activity in task.activity],
     )
+
+
+def _family_members(database: Session, family_id: uuid.UUID, user_ids: list[uuid.UUID]) -> list[User]:
+    """These people, in this order and without repeats, refusing anyone who is not in the family."""
+    members = []
+    for user_id in dict.fromkeys(user_ids):
+        member = get_family_member(database, family_id, user_id)
+        if member is None:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Assignee is not a member of your family")
+        members.append(member)
+    return members
 
 
 def _get_family_task(database: Session, family_id: uuid.UUID, task_id: uuid.UUID) -> Task:
@@ -101,11 +113,8 @@ def create_task(
     database: DatabaseSession,
 ) -> TaskResponse:
     family_id = family_access.family.id
-    assignee = None
-    if payload.assignee_id is not None:
-        assignee = get_family_member(database, family_id, payload.assignee_id)
-        if assignee is None:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Assignee is not a member of your family")
+    chosen = payload.assignee_ids if payload.assignee_ids is not None else ([payload.assignee_id] if payload.assignee_id else [])
+    assignees = _family_members(database, family_id, chosen)
 
     task = Task(
         family_id=family_id,
@@ -113,15 +122,15 @@ def create_task(
         detail=payload.detail.strip(),
         location=payload.location,
         due_at=payload.due_at,
-        assignee_id=assignee.id if assignee else None,
         priority=payload.priority,
         created_by_id=user.id,
         recurrence=payload.recurrence,
     )
+    set_assignees(task, [assignee.id for assignee in assignees])
     database.add(task)
     record_activity(task, user.id, "Created", "Added to the household delegation board")
-    if assignee is not None:
-        record_activity(task, user.id, "Assigned", f"Assigned to {assignee.name}")
+    if assignees:
+        record_activity(task, user.id, "Assigned", f"Assigned to {join_names([assignee.name for assignee in assignees])}")
     if payload.recurrence:
         database.flush()
         recurrence.start_series(task)
@@ -206,25 +215,26 @@ def assign_task(
 ) -> TaskResponse:
     family_id = family_access.family.id
     task = _get_family_task(database, family_id, task_id)
-    if task.assignee_id == payload.assignee_id:
+    chosen = payload.chosen()
+    previous = task.assignee_ids
+    if chosen == previous:
         return _task_response(task)
 
-    if payload.assignee_id is None:
+    assignees = _family_members(database, family_id, chosen)
+    if not assignees:
         detail = "Returned to the unassigned queue"
         action = "Assigned"
     else:
-        assignee = get_family_member(database, family_id, payload.assignee_id)
-        if assignee is None:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Assignee is not a member of your family")
-        detail = f"Assigned to {assignee.name}"
-        action = "Reassigned" if task.assignee_id is not None else "Assigned"
+        detail = f"Assigned to {join_names([assignee.name for assignee in assignees])}"
+        action = "Reassigned" if previous else "Assigned"
 
-    task.assignee_id = payload.assignee_id
-    # A new assignee has not been reminded yet.
+    set_assignees(task, [assignee.id for assignee in assignees])
+    # Someone new on the task has not been reminded yet.
     task.overdue_reminded_at = None
     record_activity(task, user.id, action, detail)
     response = _save(database, task)
-    telegram_bot.notify_assigned(database, task, user)
+    # Only the people newly given the task hear about it.
+    telegram_bot.notify_assigned(database, task, user, [assignee.id for assignee in assignees if assignee.id not in previous])
     return response
 
 
@@ -252,7 +262,8 @@ def quick_suggestion(
     busy = assignment.members_busy_at_task_time(database, task, zone)
     suggestion = assignment.suggest_without_model(database, task, zone)
     return QuickSuggestionResponse(
-        member_id=suggestion.member_id if suggestion else None,
+        member_id=suggestion.member_ids[0] if suggestion else None,
+        member_ids=suggestion.member_ids if suggestion else [],
         reason=suggestion.reason if suggestion else "",
         busy_member_ids=sorted(busy, key=str),
     )
@@ -284,7 +295,7 @@ def suggest_task_assignee(
         suggestion = assignment.suggest_assignee(database, task, day_plan.resolve_timezone(timezone_name))
     except LLMUnavailable as error:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(error)) from error
-    return AssignmentSuggestionResponse(member_id=suggestion.member_id, reason=suggestion.reason, note_titles=suggestion.note_titles)
+    return AssignmentSuggestionResponse(member_id=suggestion.member_ids[0], member_ids=suggestion.member_ids, reason=suggestion.reason, note_titles=suggestion.note_titles)
 
 
 @router.post("/tasks/from-document", response_model=DocumentTasksResponse)

@@ -71,7 +71,7 @@ export function DayPlanCard({ tasks }: { tasks: readonly CareTask[] }) {
     : [];
 
   return (
-    <Card>
+    <Card className="flex flex-col">
       <CardHeader className="items-center">
         <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/12 px-2.5 py-1 text-xs font-extrabold text-primary"><Sparkles size={13} aria-hidden="true" />AI plan</span>
         <button
@@ -85,7 +85,8 @@ export function DayPlanCard({ tasks }: { tasks: readonly CareTask[] }) {
           <RefreshCw size={15} className={state.status === "loading" ? "animate-spin" : undefined} aria-hidden="true" />
         </button>
       </CardHeader>
-      <CardContent className="pt-2.5">
+      {/* A column: the steps spread out and the footer sits at the bottom when the card is stretched. */}
+      <CardContent className="flex flex-1 flex-col pt-2.5">
         <h2 className="font-display text-[23px] font-bold">Your order for today</h2>
         {state.status === "loading" && (
           <div role="status" className="mt-3 space-y-2.5">
@@ -101,7 +102,7 @@ export function DayPlanCard({ tasks }: { tasks: readonly CareTask[] }) {
               <button type="button" onClick={() => setRequest((current) => ({ ...current, attempt: current.attempt + 1 }))} className="rounded font-extrabold text-primary link-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Try again</button>
             </p>
             {/* Without a plan, my tasks are still listed, soonest first. */}
-            <ol className="stagger mt-4 space-y-3">
+            <ol className="stagger mt-4 flex flex-1 flex-col justify-evenly gap-3">
               {[...tasks].sort((first, second) => (first.dueAt ?? "9999").localeCompare(second.dueAt ?? "9999")).map((task, index) => (
                 <PlanStep key={task.id} number={index + 1} task={task} />
               ))}
@@ -112,13 +113,13 @@ export function DayPlanCard({ tasks }: { tasks: readonly CareTask[] }) {
           <>
             {state.plan.summary && <p className="mt-2 text-[15.5px] leading-relaxed text-muted-foreground">{state.plan.summary}</p>}
             {steps.length > 0 && (
-              <ol aria-label="Suggested order" className="stagger mt-4 space-y-3">
+              <ol aria-label="Suggested order" className="stagger mt-4 flex flex-1 flex-col justify-evenly gap-3">
                 {steps.map(({ task, note }, index) => <PlanStep key={task.id} number={index + 1} task={task} note={note} />)}
               </ol>
             )}
           </>
         )}
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="mt-auto flex flex-wrap items-center justify-between gap-3 pt-4">
           <p className="text-sm text-muted-foreground">
             {state.status === "ready" && state.plan.generatedAt ? `A suggestion only · updated ${formatRelative(state.plan.generatedAt).toLowerCase()}` : ""}
           </p>
@@ -136,7 +137,7 @@ function PlanStep({ number, task, note }: { number: number; task: CareTask; note
   const overdue = task.attention === "Overdue";
   return (
     <li className="flex gap-3.5 rounded-[18px] border border-border bg-muted px-4 py-3.5">
-      <span aria-hidden="true" className="plan-step-number grid size-[34px] shrink-0 place-items-center rounded-xl font-display text-[15px] font-bold text-white">{number}</span>
+      <span aria-hidden="true" className="plan-step-number grid size-[34px] shrink-0 place-items-center rounded-xl font-display text-[15px] font-bold text-primary-foreground">{number}</span>
       <div className="min-w-0">
         <p className="font-extrabold">{task.title}</p>
         <p className="mt-0.5 text-sm text-muted-foreground">

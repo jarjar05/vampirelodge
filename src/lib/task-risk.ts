@@ -1,4 +1,4 @@
-import type { CareTask, FamilyMember } from "@/types/care";
+import { isAssignedTo, type CareTask, type FamilyMember } from "@/types/care";
 
 export type TaskRiskTag = "Overdue" | "Unassigned" | "Due soon" | "Unavailable" | "Clash";
 
@@ -43,7 +43,7 @@ export function mockTaskRiskAssessment(
   const reasons: TaskRiskReason[] = [];
   const deadline = task.dueAt ? new Date(task.dueAt) : undefined;
   const remainingMs = deadline ? deadline.getTime() - now.getTime() : undefined;
-  const isUnassigned = task.assigneeId === null;
+  const isUnassigned = task.assigneeIds.length === 0;
   const assignedMember = members.find((member) => member.id === task.assigneeId);
 
   if (remainingMs !== undefined && remainingMs < 0) reasons.push({ tag: "Overdue", label: "Overdue" });
@@ -56,13 +56,13 @@ export function mockTaskRiskAssessment(
 
   if (reasons.length === 0) return { reasons, riskTags: [] };
 
-  const candidates = members.filter((member) => member.availability === "Available" && member.id !== task.assigneeId);
+  const candidates = members.filter((member) => member.availability === "Available" && !isAssignedTo(task, member.id));
   const eveningCandidate = deadline && deadline.toDateString() === now.toDateString()
     ? candidates.find((member) => member.availabilityNote?.toLowerCase().includes("evening"))
     : undefined;
   const suggestedMember = eveningCandidate ?? [...candidates].sort((first, second) => {
     const activeTasks = (member: FamilyMember) => tasks.filter(
-      (item) => !item.complete && item.assigneeId === member.id,
+      (item) => !item.complete && isAssignedTo(item, member.id),
     ).length;
     return activeTasks(first) - activeTasks(second);
   })[0];

@@ -72,9 +72,7 @@ function AppShell() {
 
   if (!currentUser) {
     if (location.pathname !== "/login") return <Navigate to="/login" state={{ from: location.pathname }} replace />;
-    // The family is only known after sign-in, so greet with the last one used in this browser.
-    const lastFamilyName = window.localStorage.getItem("familyName")?.trim() || "Family Care Coordinator";
-    return <LoginPage familyName={lastFamilyName} onAuthenticated={setCurrentUser} />;
+    return <LoginPage onAuthenticated={setCurrentUser} />;
   }
 
   if (location.pathname === "/login") return <Navigate to="/" replace />;
@@ -90,9 +88,10 @@ function CareApp({ currentUser, onUserUpdated, onSignOut }: { currentUser: AuthU
   const family = care.family;
   const familyName = family?.name;
 
+  // The sign-in page no longer shows a family's name, so forget the one older versions saved in this browser.
   useEffect(() => {
-    if (familyName) window.localStorage.setItem("familyName", familyName);
-  }, [familyName]);
+    window.localStorage.removeItem("familyName");
+  }, []);
 
   if (care.status === "loading") {
     return <main className="app-backdrop grid min-h-screen place-items-center text-sm text-muted-foreground">Loading your family…</main>;

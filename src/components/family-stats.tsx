@@ -3,7 +3,8 @@ import { CheckCircle2, ClipboardList, Timer } from "lucide-react";
 import { CountUp } from "@/components/count-up";
 import { FamilyAvatar, toneColours } from "@/components/family-avatar";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import type { CareTask, FamilyMember } from "@/types/care";
+import { cn } from "@/lib/utils";
+import { isAssignedTo, type CareTask, type FamilyMember } from "@/types/care";
 
 const periods = [
   { label: "30 days", days: 30 },
@@ -27,7 +28,7 @@ type MemberStats = {
 function buildStats(members: readonly FamilyMember[], tasks: readonly CareTask[], days: number | null, now: Date): MemberStats[] {
   const since = days === null ? null : now.getTime() - days * 24 * 60 * 60_000;
   return members.map((member) => {
-    const mine = tasks.filter((task) => task.assigneeId === member.id);
+    const mine = tasks.filter((task) => isAssignedTo(task, member.id));
     const completed = mine.filter((task) => task.complete && (since === null || (task.completedAt !== undefined && new Date(task.completedAt).getTime() >= since)));
     const onTime = completed.filter((task) => !task.dueAt || !task.completedAt || new Date(task.completedAt).getTime() <= new Date(task.dueAt).getTime());
     const open = mine.filter((task) => !task.complete);
@@ -96,7 +97,7 @@ export function FamilyStats({ members, tasks, className }: { members: readonly F
   });
 
   return (
-    <Card className={className}>
+    <Card className={cn("flex flex-col", className)}>
       <CardHeader className="flex-wrap items-center">
         <h2 className="font-display text-[23px] font-bold">Task history</h2>
         <div role="radiogroup" aria-label="Period" className="relative grid grid-cols-3 rounded-2xl border border-border bg-muted p-1">
@@ -115,15 +116,16 @@ export function FamilyStats({ members, tasks, className }: { members: readonly F
           ))}
         </div>
       </CardHeader>
-      <CardContent className="pt-4">
+      <CardContent className="flex flex-1 flex-col pt-4">
         <div className="grid gap-3 sm:grid-cols-3">
           <Highlight icon={CheckCircle2} label="Most completed" name={mostCompleted?.names ?? null} value={`${mostCompleted?.best} ${mostCompleted?.best === 1 ? "task" : "tasks"} ${periodPhrase}`} />
           <Highlight icon={Timer} label="Most on time" name={mostOnTime?.names ?? null} value={`${mostOnTime?.best}% finished by the due time`} />
           <Highlight icon={ClipboardList} label="Most assigned" name={mostAssigned?.names ?? null} value={`${mostAssigned?.best} ${mostAssigned?.best === 1 ? "task" : "tasks"}, done or still open`} />
         </div>
 
-        <div className="mt-5 overflow-x-auto">
-          <table className="w-full min-w-[30rem] text-sm">
+        {/* The table's rows grow to fill the card when it is stretched to match its neighbour. */}
+        <div className="mt-5 flex-1 overflow-x-auto">
+          <table className="h-full w-full min-w-[30rem] text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs font-extrabold uppercase tracking-[0.06em] text-muted-foreground">
                 <th scope="col" className="py-2 pr-3 font-semibold">Member</th>

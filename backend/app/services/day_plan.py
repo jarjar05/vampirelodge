@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.models import Task, User
 from app.services import calendar_feed, llm
+from app.services.tasks import tasks_for_member
 
 MAX_TASKS = 20
 
@@ -79,9 +80,8 @@ def _local_label(moment: datetime | None, zone: ZoneInfo) -> str | None:
 
 
 def _open_tasks(database: Session, family_id: uuid.UUID, user_id: uuid.UUID) -> list[Task]:
-    tasks = database.scalars(
-        select(Task).where(Task.family_id == family_id, Task.assignee_id == user_id, Task.status != "Completed")
-    ).all()
+    # Their own tasks and the ones they share.
+    tasks = database.scalars(tasks_for_member(family_id, user_id).where(Task.status != "Completed")).all()
     # Dated tasks first, soonest first; undated ones last.
     return sorted(tasks, key=lambda task: (task.due_at is None, task.due_at or datetime.max.replace(tzinfo=timezone.utc), task.title))[:MAX_TASKS]
 

@@ -132,7 +132,7 @@
   --foreground: hsl(34 49% 92%);
   --card: hsl(30 16% 12%);
   --primary: hsl(17 81% 62%);
-  --primary-foreground: hsl(0 0% 100%);
+  --primary-foreground: hsl(30 25% 10%);
   --secondary: hsl(37 29% 18%);
   --secondary-foreground: hsl(41 84% 65%);
   --muted: hsl(30 16% 15%);
@@ -326,18 +326,19 @@ a:active {
   /* Sign-in button: label, then a spinner, then a tick, changing shape as it goes. */
   .submit-morph {
     position: relative;
-    height: 2.75rem;
+    height: 3.25rem;
     width: 100%;
     overflow: hidden;
-    border-radius: 0.75rem;
+    border-radius: 14px;
     background: var(--primary);
     color: var(--primary-foreground);
-    font-size: 0.875rem;
-    font-weight: 600;
+    font-size: 1rem;
+    font-weight: 800;
+    box-shadow: 0 10px 22px -12px var(--primary);
   }
   .submit-morph:hover {
     translate: 0 -2px;
-    box-shadow: 0 12px 26px -12px color-mix(in srgb, var(--primary) 70%, transparent);
+    box-shadow: 0 16px 28px -14px var(--primary);
   }
   .submit-morph > span {
     position: absolute;
@@ -356,8 +357,8 @@ a:active {
     width: 1.25rem;
     height: 1.25rem;
     border-radius: 50%;
-    border: 2.5px solid hsl(0 0% 100% / 0.35);
-    border-top-color: #fff;
+    border: 2.5px solid color-mix(in srgb, currentColor 35%, transparent);
+    border-top-color: currentColor;
     animation: spin 0.7s linear infinite;
   }
   .submit-morph .submit-tick path {
@@ -365,8 +366,8 @@ a:active {
     stroke-dashoffset: 26;
   }
   .submit-morph:not([data-state="idle"]) {
-    width: 2.75rem;
-    border-radius: 1.375rem;
+    width: 3.25rem;
+    border-radius: 1.625rem;
     pointer-events: none;
     translate: none;
   }
@@ -639,7 +640,7 @@ h1, h2, h3 { letter-spacing: -0.01em; }
 dialog[open] {
   border-radius: 28px;
   box-shadow: 0 40px 80px -30px rgba(0, 0, 0, 0.55);
-  animation: dialog-pop 0.45s var(--ease-out) both;
+  animation: dialog-pop 0.45s var(--ease-out) backwards;
 }
 dialog::backdrop { background: rgba(30, 22, 15, 0.38); backdrop-filter: blur(4px); }
 @keyframes dialog-pop { from { opacity: 0; translate: 0 18px; scale: 0.97; } }
@@ -691,6 +692,10 @@ dialog::backdrop { background: rgba(30, 22, 15, 0.38); backdrop-filter: blur(4px
 .scene-banner h1 em { font-style: italic; font-weight: 500; color: var(--primary); }
 /* A new page's title rises into place as the picture glides to its scene. */
 .banner-content { animation: banner-in 0.75s var(--ease-out) 0.15s both; }
+/* A soft glow in the sky's own colour behind the header's words, so they stay readable over anything passing behind. */
+.banner-content :is(h1, p), .welcome-panel .enter-rise :is(p) {
+  text-shadow: 0 0 2px color-mix(in srgb, var(--scene-top) 85%, transparent), 0 0 16px var(--scene-top), 0 0 30px color-mix(in srgb, var(--scene-top) 70%, transparent);
+}
 @keyframes banner-in { from { opacity: 0; translate: 0 10px; } }
 /* The sun by day and the moon by night. Switching to dark, the sun sinks behind the hills while the sky darkens and
    the moon rises a moment later; switching back, the moon sets and the sun comes up. The setting and rising use
@@ -706,7 +711,7 @@ dialog::backdrop { background: rgba(30, 22, 15, 0.38); backdrop-filter: blur(4px
   background: var(--orb);
   box-shadow: 0 0 0 18px color-mix(in srgb, var(--orb) 25%, transparent), 0 0 0 40px color-mix(in srgb, var(--orb) 12%, transparent);
   animation: sun-float 6s ease-in-out infinite alternate;
-  transition: transform 1.3s cubic-bezier(0.45, 0, 0.25, 1), opacity 1.3s ease;
+  transition: transform 1.3s cubic-bezier(0.45, 0, 0.25, 1), opacity 1.3s cubic-bezier(0.7, 0, 0.9, 0.4);
 }
 .hero-sun.moon {
   --orb: #f6e3a8;
@@ -717,23 +722,33 @@ dialog::backdrop { background: rgba(30, 22, 15, 0.38); backdrop-filter: blur(4px
     radial-gradient(circle at 66% 30%, rgba(200, 180, 130, 0.35) 0 5%, transparent 6%),
     var(--orb);
 }
-/* Down behind the hills: the sun sets to the right, the moon rises from the left. */
-.hero-sun.moon, :root[data-theme="dark"] .hero-sun.sun { opacity: 0.7; }
-.hero-sun.moon { transform: translate(-70px, 340px); }
+/* Down behind the hills: the sun sets to the right, the moon rises from the left. How far down depends on how tall
+   the picture is (--set-depth), and whichever is below the horizon fades out too, so it never shows through. */
+.hero-sun { --set-depth: 340px; }
+.hero-sun.moon, :root[data-theme="dark"] .hero-sun.sun { opacity: 0; }
+.hero-sun.moon { transform: translate(-70px, var(--set-depth)); }
 .hero-sun.sun { transform: none; opacity: 1; transition-delay: 0.35s; }
-:root[data-theme="dark"] .hero-sun.sun { transform: translate(70px, 340px); transition-delay: 0s; }
+:root[data-theme="dark"] .hero-sun.sun { transform: translate(70px, var(--set-depth)); transition-delay: 0s; }
 :root[data-theme="dark"] .hero-sun.moon { transform: none; opacity: 1; transition-delay: 0.35s; }
 @keyframes sun-float { to { translate: 0 10px; } }
 @media (max-width: 640px) {
-  .hero-sun { width: 52px; height: 52px; right: 18px; top: 18px; box-shadow: 0 0 0 10px color-mix(in srgb, var(--orb) 25%, transparent), 0 0 0 22px color-mix(in srgb, var(--orb) 12%, transparent); }
+  .hero-sun:not(.welcome-orb) { width: 40px; height: 40px; right: 30px; top: 26px; box-shadow: 0 0 0 7px color-mix(in srgb, var(--orb) 25%, transparent), 0 0 0 15px color-mix(in srgb, var(--orb) 12%, transparent); }
 }
 
 /* The living countryside along the top of every page (see hero-scene.tsx). */
 .scene-root { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+/* The sky that clouds and birds cross: the right part only, away from the words on the left. */
+.scene-sky { position: absolute; inset: 0 0 0 55%; }
+.welcome-panel .scene-sky { inset: 0 0 0 45%; }
+/* On a phone the words fill the width, so the sky is left clear for them. */
+@media (max-width: 640px) { .scene-sky { display: none; } }
 /* Each layer is pinned at the focus point, two thirds across, and slides so the current page's place sits on it. */
-.scene-anchor { position: absolute; left: 68%; bottom: 0; }
-.scene-anchor.scene-far { bottom: 18px; }
-@media (max-width: 640px) { .scene-anchor { left: 56%; } }
+.scene-anchor { position: absolute; left: 68%; bottom: 14px; }
+.scene-anchor.scene-far { bottom: 32px; }
+/* A strip of grass along the very bottom, so the page's buttons rest on open grass below everyone's feet. */
+.scene-banner .scene-root::after { content: ""; position: absolute; inset: auto 0 0 0; height: 16px; background: var(--hill-2); }
+/* On a phone the countryside is drawn a little smaller, leaving room above it for the words. */
+@media (max-width: 640px) { .scene-anchor { left: 56%; scale: 0.82; transform-origin: 0 100%; } }
 /* The drone camera (hero-scene.tsx): the outer layer rises and falls about the focus point; the inner one slides along. */
 .scene-lift { width: max-content; transform-origin: 0 100%; will-change: transform; }
 .scene-camera { width: max-content; will-change: transform; }
@@ -758,6 +773,8 @@ dialog::backdrop { background: rgba(30, 22, 15, 0.38); backdrop-filter: blur(4px
 .scene-smoke circle { fill: color-mix(in srgb, var(--card) 80%, transparent); animation: smoke 4.5s ease-out infinite; }
 .scene-smoke circle:nth-child(2) { animation-delay: 1.5s; }
 .scene-smoke circle:nth-child(3) { animation-delay: 3s; }
+/* By night the smoke is a pale grey against the dark sky. */
+:root[data-theme="dark"] .scene-smoke circle { fill: rgba(225, 215, 205, 0.35); }
 @keyframes smoke { from { translate: 0 0; scale: 0.6; opacity: 0.9; } to { translate: 10px -26px; scale: 2.2; opacity: 0; } }
 .scene-window { fill: color-mix(in srgb, var(--sky) 70%, white); transition: fill 0.6s; }
 .scene-lamp { fill: var(--card); transition: fill 0.6s, filter 0.6s; }
@@ -848,7 +865,7 @@ dialog::backdrop { background: rgba(30, 22, 15, 0.38); backdrop-filter: blur(4px
 }
 .day-block { transform-origin: left; animation: stretch 0.8s var(--ease-out) both; }
 .day-block.busy { background: color-mix(in srgb, var(--person) 12%, transparent); border: 1.5px dashed color-mix(in srgb, var(--person) 55%, transparent); }
-.day-block.task { background: var(--person); color: #fff; box-shadow: 0 6px 14px -8px var(--person); }
+.day-block.task { background: var(--person); color: var(--primary-foreground); box-shadow: 0 6px 14px -8px var(--person); }
 .day-block.task.late { box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--alert); }
 @keyframes stretch { from { transform: scaleX(0); opacity: 0; } }
 .now-line::before { content: ""; position: absolute; top: -4px; left: -4px; width: 10px; height: 10px; border-radius: 50%; background: var(--primary); animation: now-pulse 1.8s ease-in-out infinite; }
@@ -885,11 +902,27 @@ dialog::backdrop { background: rgba(30, 22, 15, 0.38); backdrop-filter: blur(4px
 .journal-entry:hover { transform: translateX(4px); box-shadow: var(--shadow-lift); }
 .journal-entry::before { content: ""; position: absolute; left: -24px; top: 50%; width: 12px; height: 12px; margin-top: -6px; border-radius: 50%; background: var(--person); box-shadow: 0 0 0 4px var(--background); }
 
-/* ── Sign in: the sky as a welcome ── */
-.welcome-scene { background: linear-gradient(180deg, var(--scene-top), var(--scene-bottom)); }
-.welcome-sun {
-  position: absolute; right: 16%; top: 14%; width: 120px; height: 120px; border-radius: 50%; background: var(--sun);
-  box-shadow: 0 0 0 26px color-mix(in srgb, var(--sun) 25%, transparent), 0 0 0 56px color-mix(in srgb, var(--sun) 12%, transparent);
-  animation: sun-float 7s ease-in-out infinite alternate;
-}
+/* ── Before signing in: the family at home (family-welcome.tsx, welcome-layout.tsx) ── */
+.welcome-panel { background: linear-gradient(180deg, var(--scene-top), var(--scene-bottom)); }
+/* The picture keeps its shape: full width along the bottom, never shorter than 38% of the panel, trimmed at the
+   sides when it has to be taller than its natural shape. */
+.welcome-art { position: absolute; left: 0; bottom: 0; width: 100%; aspect-ratio: 900 / 440; min-height: 38%; max-height: 78%; }
+.welcome-orb { --set-depth: 85vh; right: 12%; top: 9%; }
+/* On a very large screen the form grows in step with the picture, so neither looks lost beside the other. */
+@media (min-width: 1800px) { .welcome-form { zoom: 1.18; } }
+@media (min-width: 2400px) { .welcome-form { zoom: 1.35; } }
+@media (min-width: 1024px) { .welcome-orb { width: 120px; height: 120px; top: 11%; } }
+/* On a phone the sun or moon tucks into the corner, clear of the headline. */
+@media (max-width: 1023px) { .welcome-orb { width: 46px; height: 46px; right: 32px; top: 28px; box-shadow: 0 0 0 8px color-mix(in srgb, var(--orb) 25%, transparent), 0 0 0 17px color-mix(in srgb, var(--orb) 12%, transparent); } }
+.welcome-swing { transform-origin: 240px 238px; animation: welcome-swing 2.6s ease-in-out infinite alternate; }
+@keyframes welcome-swing { from { rotate: 17deg; } to { rotate: -17deg; } }
+/* Dad's arm reaches out as the swing comes towards him. */
+.welcome-push { transform-origin: 6px -24px; animation: welcome-push 2.6s ease-in-out infinite alternate; }
+@keyframes welcome-push { from { rotate: -12deg; } to { rotate: -78deg; } }
+.welcome-wave { transform-origin: 6px -24px; animation: welcome-wave 1.4s ease-in-out infinite; }
+@keyframes welcome-wave { 0%, 100% { rotate: -150deg; } 50% { rotate: -118deg; } }
+.welcome-rock { transform-origin: 3px 0; animation: welcome-rock 2.4s ease-in-out infinite alternate; }
+@keyframes welcome-rock { from { rotate: -4deg; } to { rotate: 4deg; } }
+.welcome-drop { animation: welcome-drop 1.05s linear infinite; }
+@keyframes welcome-drop { from { translate: 0 0; opacity: 1; } to { translate: 1.5px 15px; opacity: 0; } }
 .brand-mark { background: linear-gradient(160deg, var(--scene-top), var(--scene-bottom)); box-shadow: inset 0 -9px 0 var(--hill-1); }

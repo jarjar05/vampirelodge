@@ -1,1 +1,1 @@
-"""Family Care Coordinator API package."""
+"""CareCircle API package."""

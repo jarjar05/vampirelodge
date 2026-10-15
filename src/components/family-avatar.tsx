@@ -43,7 +43,7 @@ export function FamilyAvatar({
   return (
     <span
       aria-hidden="true"
-      className={cn("inline-flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-extrabold text-white", toneStyles[tone], className)}
+      className={cn("inline-flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-extrabold text-primary-foreground", toneStyles[tone], className)}
     >
       {initials}
     </span>

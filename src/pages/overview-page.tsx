@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
+  CheckCircle2,
   CalendarDays,
   ClipboardList,
   SlidersHorizontal,
@@ -23,15 +24,16 @@ import { areaOf, defaultOverviewLayout, overviewCards, resolveOverviewLayout, ty
 import { type CareData } from "@/hooks/use-care-data";
 import { useReveal } from "@/hooks/use-reveal";
 import { formatLongDate, getLocalDateInputValue, partOfDay } from "@/lib/dates";
-import { ActivityCard, countActiveTasks, EmptyNote, OverviewCard } from "@/components/page-parts";
+import { ActivityCard, BannerButton, countActiveTasks, EmptyNote, OverviewCard } from "@/components/page-parts";
+import { isAssignedTo } from "@/types/care";
 
 export function OverviewPage({ care, currentUser, onUserUpdated }: { care: CareData; currentUser: AuthUser; onUserUpdated: (user: AuthUser) => void }) {
   const { tasks, members } = care;
   const now = new Date();
   const activeTasks = tasks.filter((task) => !task.complete);
   const attentionTasks = activeTasks.filter((task) => task.attention);
-  const unassignedTasks = activeTasks.filter((task) => task.assigneeId === null);
-  const myTasks = activeTasks.filter((task) => task.assigneeId === currentUser.id);
+  const unassignedTasks = activeTasks.filter((task) => task.assigneeIds.length === 0);
+  const myTasks = activeTasks.filter((task) => isAssignedTo(task, currentUser.id));
   // Open tasks due before the end of today, including any already overdue.
   const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime();
   const dueTodayTasks = activeTasks.filter((task) => task.dueAt && new Date(task.dueAt).getTime() < endOfToday);
@@ -56,33 +58,39 @@ export function OverviewPage({ care, currentUser, onUserUpdated }: { care: CareD
     // The plan lists my tasks in its suggested order, so a separate list is only needed when I have none.
     plan: myTasks.length > 0 ? <DayPlanCard tasks={myTasks} /> : (
       <OverviewCard title="Your order for today" to="/tasks" linkLabel="All tasks">
-        <EmptyNote>Nothing is assigned to you.</EmptyNote>
+        <div className="flex flex-1 flex-col items-center justify-center gap-1.5 py-4 text-center">
+          <CheckCircle2 size={30} aria-hidden="true" className="text-sage" />
+          <p className="mt-1 font-extrabold">Nothing is assigned to you</p>
+          <p className="max-w-[30ch] text-sm text-muted-foreground">Anything given to you will show up here, in a sensible order to do it.</p>
+        </div>
       </OverviewCard>
     ),
     schedule: <TodayScheduleCard care={care} />,
     family: (
       <OverviewCard title="The family" to="/circle" linkLabel="View family">
         <p className="-mt-1 text-sm text-muted-foreground">The ring fills with each person’s open tasks</p>
-        <ul className="stagger mt-4 grid grid-cols-3 gap-x-3 gap-y-5">
+        {/* Each person has a tile; the tiles share out any extra height, so a tall card is filled, not left empty. */}
+        <ul className="stagger mt-4 grid flex-1 auto-rows-fr grid-cols-3 gap-2.5">
           {members.map((member) => {
             const open = countActiveTasks(tasks, member.id);
             return (
-              <li key={member.id} className="min-w-0">
+              <li key={member.id} className="flex min-w-0">
                 <button
                   type="button"
                   onClick={() => setMemberId(member.id)}
                   aria-haspopup="dialog"
                   aria-label={`${member.name}: ${open} open ${open === 1 ? "task" : "tasks"}, ${member.availability}. Show their tasks and workload`}
-                  className="family-face w-full min-w-0 rounded-2xl py-1 text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="family-face flex w-full min-w-0 flex-col items-center justify-center rounded-2xl bg-muted/55 px-1.5 py-3 text-center transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   style={{ "--person": toneColours[member.tone], "--load": Math.round((open / maxWorkload) * 100) } as React.CSSProperties}
                 >
-                <span aria-hidden="true" className="load-ring mx-auto grid size-16 place-items-center rounded-full">
+                <span aria-hidden="true" className="load-ring mx-auto grid size-[clamp(4rem,6vw,5.25rem)] place-items-center rounded-full">
                   {member.avatarUrl
-                    ? <img src={member.avatarUrl} alt="" className="size-[52px] rounded-full object-cover" />
-                    : <span className="grid size-[52px] place-items-center rounded-full text-[15px] font-extrabold">{member.initials}</span>}
+                    ? <img src={member.avatarUrl} alt="" className="size-[82%] rounded-full object-cover" />
+                    : <span className="grid size-[82%] place-items-center rounded-full text-[clamp(15px,1.2vw,18px)] font-extrabold">{member.initials}</span>}
                 </span>
-                <span aria-hidden="true" className="mt-2 block truncate font-extrabold">{member.firstName}</span>
-                <span aria-hidden="true" className={`block truncate text-[12.5px] ${member.availability === "Away today" ? "text-alert" : "text-muted-foreground"}`}>{open} open · {member.availability}</span>
+                <span aria-hidden="true" className="mt-2.5 block max-w-full truncate text-[clamp(1rem,1.1vw,1.1rem)] font-extrabold">{member.firstName}</span>
+                <span aria-hidden="true" className="block text-[12.5px] font-bold text-muted-foreground">{open} open</span>
+                <span aria-hidden="true" className={`block max-w-full text-[12px] leading-tight ${member.availability === "Away today" ? "text-alert" : "text-muted-foreground"}`}>{member.availability}</span>
                 </button>
               </li>
             );
@@ -90,7 +98,7 @@ export function OverviewPage({ care, currentUser, onUserUpdated }: { care: CareD
         </ul>
       </OverviewCard>
     ),
-    activity: <ActivityCard activity={care.activity.slice(0, 4)} members={members} to="/activity" />,
+    activity: <ActivityCard activity={care.activity.slice(0, 12)} members={members} to="/activity" />,
   };
   const inArea = (area: OverviewArea) => layout.filter((id) => areaOf(id) === area);
   const [top, main, side] = [inArea("top"), inArea("main"), inArea("side")];
@@ -109,19 +117,25 @@ export function OverviewPage({ care, currentUser, onUserUpdated }: { care: CareD
 
   return (
     <>
-      <BannerContent label="Today" className="px-6 pt-7 pb-[150px] sm:px-9 sm:pt-9 sm:pb-[136px]">
+      <BannerContent label="Today" className="px-6 pt-7 pb-[164px] pr-[5.5rem] sm:px-9 sm:pt-9 sm:pb-[146px]">
         <p className="text-[13px] font-extrabold uppercase tracking-[0.05em] text-muted-foreground">{formatLongDate(now)}</p>
-        <h1 className="mt-2 pr-14 font-display text-[clamp(34px,5vw,56px)] font-bold leading-[1.05] sm:pr-0">Good {partOfDay(now)}, <em>{firstName}</em></h1>
+        <h1 className="mt-2 font-display text-[clamp(34px,5vw,56px)] font-bold leading-[1.05]">Good {partOfDay(now)}, <em>{firstName}</em></h1>
         <p className="mt-3 max-w-[44ch] text-[17px] sm:text-lg">{lead}</p>
-        <button type="button" onClick={() => setIsCustomising(true)} className="hero-chip absolute right-5 bottom-5 inline-flex items-center gap-2 rounded-full border border-card/70 px-4 py-2 text-sm font-extrabold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-          <SlidersHorizontal size={14} aria-hidden="true" />Customise
-        </button>
+        <div className="absolute right-4 bottom-4 sm:right-5 sm:bottom-5">
+          <BannerButton icon={SlidersHorizontal} onClick={() => setIsCustomising(true)}>Customise</BannerButton>
+        </div>
       </BannerContent>
       {top.map((id) => <div key={id} className="mb-6">{cards[id]}</div>)}
       {(main.length > 0 || side.length > 0) && (
-        <div className={`grid items-start gap-6 ${main.length > 0 && side.length > 0 ? "lg:grid-cols-[minmax(0,1.3fr)_minmax(0,0.8fr)]" : ""}`}>
-          {main.length > 0 && <div className="space-y-6">{main.map((id) => <div key={id}>{cards[id]}</div>)}</div>}
-          {side.length > 0 && <div className="space-y-6">{side.map((id) => <div key={id}>{cards[id]}</div>)}</div>}
+        // The two columns always end level: each stretches to the taller one, and its last card grows to fill.
+        <div className={`grid items-stretch gap-6 ${main.length > 0 && side.length > 0 ? "lg:grid-cols-[minmax(0,1.3fr)_minmax(0,0.8fr)]" : ""}`}>
+          {[main, side].filter((column) => column.length > 0).map((column) => (
+            <div key={column.join()} className="flex flex-col gap-6">
+              {column.map((id, index) => (
+                <div key={id} className={index === column.length - 1 ? "flex flex-1 flex-col *:flex-1" : undefined}>{cards[id]}</div>
+              ))}
+            </div>
+          ))}
         </div>
       )}
       {layout.length === 0 && <EmptyNote>Nothing is shown here. Choose Customise to add cards.</EmptyNote>}

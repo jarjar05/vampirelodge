@@ -71,8 +71,10 @@ def read_schedule(
         select(Task).where(Task.family_id == family_id, Task.assignee_id.is_not(None), Task.status != "Completed",
                            Task.due_at >= window_start, Task.due_at < window_end)
     ).all():
-        if task.assignee_id in items:
-            items[task.assignee_id].append(ScheduleItem(kind="task", start=task.due_at, title=task.title, id=str(task.id)))
+        # A shared task shows in the week of everyone on it.
+        for assignee_id in task.assignee_ids:
+            if assignee_id in items:
+                items[assignee_id].append(ScheduleItem(kind="task", start=task.due_at, title=task.title, id=str(task.id)))
     for user_id, blocks in busy.items():
         for block in blocks:
             items[user_id].append(ScheduleItem(kind="busy", start=block.start.astimezone(timezone.utc), end=block.end.astimezone(timezone.utc), all_day=block.all_day))

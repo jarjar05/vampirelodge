@@ -82,12 +82,23 @@ def _retire_in_progress_status() -> None:
         connection.execute(text("UPDATE tasks SET status = 'Open' WHERE status = 'In progress'"))
 
 
+def _fill_task_assignees() -> None:
+    """Tasks from before several people could share one: their lead becomes the first (and only) person on it."""
+    with engine.begin() as connection:
+        connection.execute(text(
+            "INSERT INTO task_assignees (task_id, user_id, position) "
+            "SELECT id, assignee_id, 0 FROM tasks "
+            "WHERE assignee_id IS NOT NULL AND id NOT IN (SELECT task_id FROM task_assignees)"
+        ))
+
+
 def initialize_database() -> None:
     """Create tables declared by the application's SQLAlchemy models."""
     Base.metadata.create_all(bind=engine)
     _retire_removed_fields()
     _add_missing_columns()
     _retire_in_progress_status()
+    _fill_task_assignees()
 
 
 if __name__ == "__main__":

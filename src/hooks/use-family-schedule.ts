@@ -4,7 +4,7 @@ import type { CareTask, FamilySchedule } from "@/types/care";
 
 /** A short text that changes whenever anything the schedule shows changes, so it is fetched again then and only then. */
 function scheduleKey(tasks: readonly CareTask[]) {
-  return tasks.map((task) => `${task.id}:${task.dueAt ?? ""}:${task.assigneeId ?? ""}:${task.complete}:${task.title}`).join("|");
+  return tasks.map((task) => `${task.id}:${task.dueAt ?? ""}:${task.assigneeIds.join(",")}:${task.complete}:${task.title}`).join("|");
 }
 
 /** Everyone's tasks due and calendar busy times for `days` days from `start` (YYYY-MM-DD, local). */

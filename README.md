@@ -1,32 +1,43 @@
-# Family Care Coordinator
+# CareCircle
 
 **Share the work of caring for a parent fairly, without the group-chat chaos.**
 
 When a family looks after an ageing parent together, the jobs (medication, groceries, appointments, bills) get
-scattered across group chats and memory, and the same person ends up doing most of it. Family Care Coordinator puts
+scattered across group chats and memory, and the same person ends up doing most of it. CareCircle puts
 every task in one shared place, works out who is best placed to take each one, and reminds people when something is
 slipping.
 
-![The Overview: an AI plan for the day, today's schedule for each family member, and everyone's workload](docs/screenshots/overview.png)
+![The Overview: a greeting over an animated countryside, an AI plan for the day, and everyone's workload](docs/screenshots/overview.png)
 
 ## What it does
 
 **Plan the work together**
 - One shared task list for the family, with due times, places, priorities and repeating tasks.
-- A calendar showing each person's week: the tasks they hold and, from their linked Apple, Google or Outlook
-  calendar, when they are busy.
-- An Overview each person arranges for themselves, with a task-history dashboard on the Family page.
+- A calendar showing each person's week: the tasks they hold, in their own colour, and, from their linked Apple,
+  Google or Outlook calendar, when they are busy. Any task opens its details from the calendar.
+- An Overview each person arranges for themselves, with a timeline of everyone's day and each person's workload.
+- Click anyone in the family to see what is on their list, how their load compares, and what they finished lately.
 - Changes made by one person appear on everyone else's screen within seconds.
 
 **Let AI do the tedious parts**
+- **Ask anything.** A prompt bar at the top of every page (or Cmd+K) answers questions about the family's care, such
+  as "Who's free on Saturday morning?" or "What's left for Grandma this week?", from the family's tasks, people,
+  calendars and notes. Follow-up questions keep the conversation going, and tasks it mentions open with a click.
 - **Who should do this?** For each new task the AI suggests a family member, weighing who is free at that time
   (from their calendar), their role (a working-age son before an elderly grandmother), and how much they already
   carry, and explains its choice in one sentence.
 - **Tasks from letters.** Upload a school letter, a photo of a notice or a forwarded email, and the AI drafts the
   tasks in it with dates, times and places filled in.
-- **Your plan.** Each person gets a short summary of their open tasks in a sensible order.
+- **Your order for today.** Each person gets a short summary of their open tasks in a sensible order.
 - **Family notes.** Care notes the family writes ("Linda handles hospital billing") are searched and given to the AI
   when it suggests who should take a task.
+
+**A warm, lively design**
+- A family-journal look in light and dark, with the colours fading smoothly and the sun setting as the moon rises.
+- An illustrated countryside along the top of every page, with a place for each page: home, the market street, the
+  town square, the park, the library and the post office. Switching pages flies there like a drone, and each place
+  has someone in it: the dog in the garden, a shopper, a child flying a kite, the postie.
+- The greeting is personal to whoever signs in: their name, their tasks today, and the time of day where they are.
 
 **Work from Telegram**
 - Forward a message to the family's bot, or mention it in the family group, and it drafts a task to confirm.
@@ -36,7 +47,8 @@ slipping.
 ## How the AI is kept safe
 
 - **It proposes; the family decides.** The AI never creates, assigns or completes anything on its own. Every action
-  happens when a person presses a button.
+  happens when a person presses a button. The ask bar only reads: asked to change something, it says where in the
+  app to do it.
 - **It can only answer within bounds.** Suggestions are constrained to real members of the family, and people busy at
   the task's time are excluded outright.
 - **It never dead-ends.** With no AI key, or the AI service down, assignee suggestions fall back to plain rules and
@@ -45,13 +57,21 @@ slipping.
 
 ## Screenshots
 
+| Ask anything | Overview at night |
+|---|---|
+| ![The family assistant answering who is free on Saturday morning](docs/screenshots/assistant.png) | ![The Overview in dark mode, under a moonlit sky](docs/screenshots/overview-dark.png) |
+
 | Tasks | Calendar |
 |---|---|
-| ![Tasks, with overdue and clashing tasks flagged](docs/screenshots/tasks.png) | ![Each family member's week, with tasks and busy times](docs/screenshots/calendar.png) |
+| ![Tasks at the market street, with overdue and clashing tasks flagged](docs/screenshots/tasks.png) | ![Each family member's week at the town square, with tasks and busy times](docs/screenshots/calendar.png) |
 
-| Family | Sign-in |
+| Family | One member |
 |---|---|
-| ![Family members, workload and task history](docs/screenshots/family.png) | ![Sign-in](docs/screenshots/sign-in.png) |
+| ![Family members, workload and task history, at the park](docs/screenshots/family.png) | ![A member's open tasks, workload and recent work](docs/screenshots/member.png) |
+
+| Sign-in |
+|---|
+| ![Sign-in, with the whole family at home as a welcome](docs/screenshots/sign-in.png) |
 
 ## Running it
 
@@ -74,7 +94,7 @@ the bot switched off.
 
 | Setting | What it turns on | Where to get it |
 |---|---|---|
-| `OPENAI_API_KEY` | AI suggestions, tasks from documents, the daily plan | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
+| `OPENAI_API_KEY` | AI suggestions, the ask bar, tasks from documents, the daily plan | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
 | `TELEGRAM_BOT_TOKEN` | The Telegram bot and overdue reminders | Message `@BotFather` in Telegram and send `/newbot` |
 
 **Start everything** (the backend, the Telegram bot and the app) in one terminal:
@@ -105,7 +125,7 @@ again on demo day.
 ## Tests
 
 ```sh
-cd backend && .venv/bin/python -m pytest      # 192 backend tests
+cd backend && .venv/bin/python -m pytest      # 197 backend tests
 npm run test:e2e                              # 6 browser tests in Chrome
 ```
 
@@ -127,10 +147,10 @@ customising the Overview, and two people seeing each other's changes live.
 ```
 src/                 the app
   pages/             one file per page
-  components/        shared pieces
+  components/        shared pieces, including the illustrated header (hero-scene.tsx) and the ask bar
 backend/app/
   routes/            the API
-  services/          the logic: AI, calendars, the Telegram bot, recurring tasks
+  services/          the logic: AI (including the family assistant), calendars, the Telegram bot, recurring tasks
   models/            the database tables
 backend/tests/       backend tests
 e2e/                 browser tests

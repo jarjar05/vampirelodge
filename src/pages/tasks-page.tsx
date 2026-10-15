@@ -12,7 +12,6 @@ import {
   SlidersHorizontal,
   Trash2,
   UsersRound,
-  X,
 } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { DatePicker, TimePicker } from "@/components/ui/date-time-picker";
 import { type AuthUser } from "@/components/auth/login-page";
+import { AssigneeFaces, AssigneePicker, joinFirstNames } from "@/components/assignee-picker";
 import { FamilyAvatar } from "@/components/family-avatar";
 import { FamilyAssignmentSuggestion } from "@/components/family-assignment-suggestion";
 import { DocumentImport } from "@/components/document-import";
@@ -28,6 +28,7 @@ import { type CareData } from "@/hooks/use-care-data";
 import { getLocalDateInputValue, localInputsToIso } from "@/lib/dates";
 import { mockTaskRiskAssessment, taskRiskTagStyles, type TaskRiskAssessment } from "@/lib/task-risk";
 import {
+  isAssignedTo,
   recurrenceOptions,
   recurrencePhrases,
   type CareTask,
@@ -37,7 +38,7 @@ import {
   type FamilyMember,
   type TaskActivity,
 } from "@/types/care";
-import { PageHeader } from "@/components/page-parts";
+import { BannerButton, PageHeader } from "@/components/page-parts";
 
 export function CarePlanPage({ care, currentUser }: { care: CareData; currentUser: AuthUser }) {
   const { tasks, members } = care;
@@ -176,8 +177,8 @@ export function CarePlanPage({ care, currentUser }: { care: CareData; currentUse
   ]));
   const filterTasks = (filter: TaskFilter) => {
     switch (filter) {
-      case "My Tasks": return tasks.filter((task) => task.assigneeId === currentUser.id && !task.complete);
-      case "Unassigned": return tasks.filter((task) => task.assigneeId === null && !task.complete);
+      case "My Tasks": return tasks.filter((task) => isAssignedTo(task, currentUser.id) && !task.complete);
+      case "Unassigned": return tasks.filter((task) => task.assigneeIds.length === 0 && !task.complete);
       case "Needs attention": return tasks.filter((task) => Boolean(task.attention) && !task.complete);
       case "Completed": return tasks.filter((task) => task.complete);
       default: return tasks.filter((task) => !task.complete);
@@ -192,7 +193,7 @@ export function CarePlanPage({ care, currentUser }: { care: CareData; currentUse
   const canFilterTasks = activeFilter !== "Completed";
   const filteredTasks = canFilterTasks ? visibleTasks.filter((task) => {
     if (priorityFilter !== "All priorities" && task.priority !== priorityFilter) return false;
-    if (assigneeFilter !== "All assignees" && (task.assigneeId ?? "Unassigned") !== assigneeFilter) return false;
+    if (assigneeFilter === "Unassigned" ? task.assigneeIds.length > 0 : assigneeFilter !== "All assignees" && !isAssignedTo(task, assigneeFilter)) return false;
     if (atRiskOnly && (riskAssessments.get(task.id)?.reasons.length ?? 0) === 0) return false;
     return true;
   }) : visibleTasks;
@@ -224,8 +225,8 @@ export function CarePlanPage({ care, currentUser }: { care: CareData; currentUse
         title="Tasks"
         lead={<span className="inline-flex items-center gap-2"><UsersRound size={16} aria-hidden="true" />Shared with {members.length} family {members.length === 1 ? "member" : "members"}</span>}
         actions={<>
-          <Button variant="outline" aria-expanded={isImportingDocument} onClick={() => setIsImportingDocument((current) => !current)}><FileText size={15} aria-hidden="true" />From a document</Button>
-          <Button onClick={() => { clearDraft(); setIsCreatingTask((current) => !current); }}><Plus size={15} aria-hidden="true" />New task</Button>
+          <BannerButton icon={FileText} aria-expanded={isImportingDocument} onClick={() => setIsImportingDocument((current) => !current)}>From a document</BannerButton>
+          <BannerButton icon={Plus} aria-expanded={isCreatingTask} onClick={() => { clearDraft(); setIsCreatingTask((current) => !current); }}>New task</BannerButton>
         </>}
       />
       {isImportingDocument && (
@@ -264,7 +265,7 @@ export function CarePlanPage({ care, currentUser }: { care: CareData; currentUse
                       role="radio"
                       aria-checked={newTaskPriority === priority}
                       onClick={() => setNewTaskPriority(priority)}
-                      className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${newTaskPriority === priority ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                      className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${newTaskPriority === priority ? "bg-card text-foreground shadow-sm ring-1 ring-primary/40" : "text-muted-foreground hover:text-foreground"}`}
                     >
                       <span aria-hidden="true" className={`size-2 rounded-full ${priorityDots[priority]}`} />{priority}
                     </button>
@@ -281,7 +282,7 @@ export function CarePlanPage({ care, currentUser }: { care: CareData; currentUse
                       role="radio"
                       aria-checked={newTaskRecurrence === option.value}
                       onClick={() => setNewTaskRecurrence(option.value)}
-                      className={`rounded-md px-1 py-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:text-sm ${newTaskRecurrence === option.value ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                      className={`rounded-md px-1 py-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:text-sm ${newTaskRecurrence === option.value ? "bg-card text-foreground shadow-sm ring-1 ring-primary/40" : "text-muted-foreground hover:text-foreground"}`}
                     >
                       {option.label}
                     </button>
@@ -303,8 +304,8 @@ export function CarePlanPage({ care, currentUser }: { care: CareData; currentUse
           task={recommendationTask}
           tasks={tasks}
           members={members}
-          onAssign={(memberId) => {
-            void care.assignTask(recommendationTask.id, memberId);
+          onAssign={(memberIds) => {
+            void care.assignTask(recommendationTask.id, memberIds);
             setRecommendationTaskId(null);
           }}
         />
@@ -382,7 +383,7 @@ export function CarePlanPage({ care, currentUser }: { care: CareData; currentUse
               isLeaving={activeFilter !== "Completed" && leaving.has(task.id)}
               onExited={() => finishLeaving(task.id)}
               onToggle={() => void toggleTask(task)}
-              onAssign={(assigneeId) => void care.assignTask(task.id, assigneeId)}
+              onAssign={(assigneeIds) => void care.assignTask(task.id, assigneeIds)}
               onOpen={() => setSelectedTaskId(task.id)}
             />
           ))}
@@ -399,7 +400,7 @@ export function CarePlanPage({ care, currentUser }: { care: CareData; currentUse
             // Forget the link, so following it again opens the task again.
             if (linkedTaskId) setSearchParams((current) => { current.delete("task"); return current; }, { replace: true });
           }}
-          onReassign={(assigneeId) => void care.assignTask(selectedTask.id, assigneeId)}
+          onReassign={(assigneeIds) => void care.assignTask(selectedTask.id, assigneeIds)}
           onStopRepeating={() => void care.stopRepeating(selectedTask.id)}
           onSave={(changes) => care.updateTask(selectedTask.id, changes)}
           onDelete={() => care.deleteTask(selectedTask.id)}
@@ -415,9 +416,6 @@ type TaskFilter = "All" | "My Tasks" | "Unassigned" | "Needs attention" | "Compl
 // How long a completed task celebrates on its row before it slides away. The slide and the closing of the gap
 // are timed in index.css ("task-leaving"), and the row reports back when they have finished.
 const taskCelebrateMs = 480;
-
-/** Select value meaning "return this task to the unassigned queue". */
-const unassignValue = "unassign";
 
 function TaskListItem({
   task,
@@ -437,11 +435,15 @@ function TaskListItem({
   /** Called once the exit animation has finished and the row can be removed. */
   onExited?: () => void;
   onToggle: () => void;
-  onAssign: (assigneeId: string | null) => void;
+  onAssign: (assigneeIds: string[]) => void;
   onOpen: () => void;
 }) {
   const [isAssigning, setIsAssigning] = useState(false);
-  const [chosenAssignee, setChosenAssignee] = useState("");
+  const [useSuggestion, setUseSuggestion] = useState(false);
+  const closeAssigning = () => {
+    setIsAssigning(false);
+    setUseSuggestion(false);
+  };
   // A task that has just been ticked off celebrates first, then exits. Both are worked out while rendering,
   // so the very first frame after the tick is already the celebration and never a flash of the exit.
   const isDeparting = isLeaving && task.complete;
@@ -471,19 +473,12 @@ function TaskListItem({
     return () => { isCurrent = false; };
   }, [isAssigning, task.id]);
   const busyMemberIds = new Set(quick?.busyMemberIds ?? []);
-  const quickMember = quick?.memberId && quick.memberId !== task.assigneeId ? members.find((member) => member.id === quick.memberId) : undefined;
   // Until the answer arrives, or if it cannot be fetched, fall back to the simpler rule worked out in the browser.
-  const suggestedMember = quickMember ?? (quick ? undefined : riskAssessment?.suggestedMember);
-  const assignee = members.find((member) => member.id === task.assigneeId);
-  const otherMembers = members.filter((member) => member.id !== task.assigneeId);
-  const isUnassigned = task.assigneeId === null;
-  // Preselect the suggestion, so one click on Assign/Reassign accepts it.
-  const selectedOwner = chosenAssignee || suggestedMember?.id || otherMembers[0]?.id || "";
-  const selectedOwnerName = selectedOwner === unassignValue ? "no one" : members.find((member) => member.id === selectedOwner)?.firstName ?? "";
-  const closeAssigning = () => {
-    setIsAssigning(false);
-    setChosenAssignee("");
-  };
+  const suggestedIds = quick ? quick.memberIds : riskAssessment?.suggestedMember ? [riskAssessment.suggestedMember.id] : [];
+  const suggestedMembers = suggestedIds.map((id) => members.find((member) => member.id === id)).filter((member): member is FamilyMember => Boolean(member));
+  const assignees = task.assigneeIds.map((id) => members.find((member) => member.id === id)).filter((member): member is FamilyMember => Boolean(member));
+  const isUnassigned = task.assigneeIds.length === 0;
+  const suggestionIsNew = suggestedIds.length > 0 && !(suggestedIds.length === task.assigneeIds.length && suggestedIds.every((id) => isAssignedTo(task, id)));
   // On its way out, the row keeps the look it had before it was ticked, so nothing in it changes size mid-animation.
   const looksOpen = !task.complete || isLeaving;
   const isAtRisk = looksOpen && (riskAssessment?.reasons.length ?? 0) > 0;
@@ -517,44 +512,36 @@ function TaskListItem({
       <div className="min-w-0 text-xs text-muted-foreground" onClick={(event) => event.stopPropagation()}>
         <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.08em] xl:hidden">Assigned to</span>
         {isAssigning && !task.complete ? (
-          <div className="rounded-lg bg-primary/5 p-2">
-            {suggestedMember && <p className="mb-1.5 truncate text-[11px] font-semibold text-primary">Suggested: {suggestedMember.firstName}</p>}
-            <div className="flex items-center gap-1.5">
-              <select
-                autoFocus
-                aria-label={`Choose assignee for ${task.title}`}
-                value={selectedOwner}
-                onChange={(event) => setChosenAssignee(event.target.value)}
-                className="min-w-0 flex-1 rounded-md border border-input bg-background px-2 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-              >
-                {otherMembers.map((member) => <option key={member.id} value={member.id}>{member.firstName}{busyMemberIds.has(member.id) ? " (busy then)" : ""}</option>)}
-                {!isUnassigned && <option value={unassignValue}>Unassigned</option>}
-              </select>
-              <Button
-                size="sm"
-                aria-label={`${isUnassigned ? "Assign" : "Reassign"} ${task.title} to ${selectedOwnerName}`}
-                disabled={!selectedOwner}
-                onClick={() => { onAssign(selectedOwner === unassignValue ? null : selectedOwner); closeAssigning(); }}
-              >
-                {isUnassigned ? "Assign" : "Reassign"}
-              </Button>
-              <button type="button" aria-label="Cancel" title="Cancel" onClick={closeAssigning} className="flex size-7 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                <X size={14} aria-hidden="true" />
+          <>
+            {suggestionIsNew && (
+              <button type="button" onClick={() => setUseSuggestion(true)} disabled={useSuggestion} className="mb-1.5 block max-w-full truncate rounded text-left text-[11px] font-semibold text-primary enabled:hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                Suggested: {joinFirstNames(suggestedMembers)}{!isUnassigned && !useSuggestion ? " · use this" : ""}
               </button>
-            </div>
-          </div>
+            )}
+            {/* Remounted when the suggestion arrives or is taken, so it is what starts selected. */}
+            <AssigneePicker
+              key={`${quick ? "suggested" : "fallback"}-${useSuggestion}`}
+              members={members}
+              current={task.assigneeIds}
+              preset={isUnassigned || useSuggestion ? suggestedIds : undefined}
+              busyMemberIds={busyMemberIds}
+              label={`Who does ${task.title}`}
+              onSave={(ids) => { onAssign(ids); closeAssigning(); }}
+              onCancel={closeAssigning}
+            />
+          </>
         ) : (
           <button
             type="button"
             disabled={task.complete}
             onClick={() => setIsAssigning(true)}
-            aria-label={isUnassigned ? `Assign ${task.title}` : `${task.title} is assigned to ${assignee?.firstName ?? task.owner}. Change assignee`}
+            aria-label={isUnassigned ? `Assign ${task.title}` : `${task.title} is assigned to ${joinFirstNames(assignees) || task.owner}. Change who does it`}
             className="-mx-2 flex w-[calc(100%+1rem)] items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors enabled:hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            {assignee
-              ? <FamilyAvatar initials={assignee.initials.slice(0, 1)} tone={assignee.tone} imageUrl={assignee.avatarUrl} className="size-7" />
+            {assignees.length > 0
+              ? <AssigneeFaces members={assignees} />
               : <span aria-hidden="true" className="flex size-7 shrink-0 items-center justify-center rounded-full border border-dashed border-input text-xs">?</span>}
-            <span className={`min-w-0 flex-1 truncate text-sm ${isUnassigned ? "text-muted-foreground" : "text-foreground"}`}>{assignee?.firstName ?? task.owner}</span>
+            <span className={`min-w-0 flex-1 truncate text-sm ${isUnassigned ? "text-muted-foreground" : "text-foreground"}`}>{task.owner}</span>
             {!task.complete && <ChevronDown size={14} aria-hidden="true" className="shrink-0" />}
           </button>
         )}
@@ -625,7 +612,7 @@ export function TaskDetails({ care, taskId, onClose }: { care: CareData; taskId:
       members={care.members}
       activity={task.activity}
       onClose={onClose}
-      onReassign={(assigneeId) => void care.assignTask(task.id, assigneeId)}
+      onReassign={(assigneeIds) => void care.assignTask(task.id, assigneeIds)}
       onStopRepeating={() => void care.stopRepeating(task.id)}
       onSave={(changes) => care.updateTask(task.id, changes)}
       onDelete={() => care.deleteTask(task.id)}
@@ -649,7 +636,7 @@ function TaskDetailDialog({
   members: readonly FamilyMember[];
   activity: TaskActivity[];
   onClose: () => void;
-  onReassign: (assigneeId: string) => void;
+  onReassign: (assigneeIds: string[]) => void;
   onStopRepeating: () => void;
   onSave: (changes: TaskChanges) => Promise<boolean | undefined>;
   onDelete: () => Promise<boolean | undefined>;
@@ -658,14 +645,14 @@ function TaskDetailDialog({
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isReassigning, setIsReassigning] = useState(false);
-  const [selectedOwner, setSelectedOwner] = useState(task.assigneeId ?? "");
 
   useEffect(() => {
     const dialog = dialogRef.current;
     if (dialog && !dialog.open) dialog.showModal();
   }, []);
 
-  const assignedMember = members.find((member) => member.id === task.assigneeId);
+  const assignees = task.assigneeIds.map((id) => members.find((member) => member.id === id)).filter((member): member is FamilyMember => Boolean(member));
+  const assignedMember = assignees[0];
   const isOverdue = !task.complete && task.attention === "Overdue";
 
   return (
@@ -691,12 +678,14 @@ function TaskDetailDialog({
         </div>
 
         <div className="mt-5 flex items-center gap-3 rounded-lg bg-primary/5 p-3.5">
-          {assignedMember
-            ? <FamilyAvatar initials={assignedMember.initials} tone={assignedMember.tone} imageUrl={assignedMember.avatarUrl} className="size-10" />
-            : <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-full border border-dashed border-input text-sm text-muted-foreground">?</span>}
+          {assignees.length > 1
+            ? <AssigneeFaces members={assignees} />
+            : assignedMember
+              ? <FamilyAvatar initials={assignedMember.initials} tone={assignedMember.tone} imageUrl={assignedMember.avatarUrl} className="size-10" />
+              : <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-full border border-dashed border-input text-sm text-muted-foreground">?</span>}
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold">{assignedMember?.name ?? "Unassigned"}</p>
-            <p className="text-xs text-muted-foreground">{task.complete ? "Completed" : assignedMember ? assignedMember.role : "Needs someone to take it"}</p>
+            <p className="truncate text-sm font-semibold">{assignees.length > 1 ? joinFirstNames(assignees) : assignedMember?.name ?? "Unassigned"}</p>
+            <p className="text-xs text-muted-foreground">{task.complete ? "Completed" : assignees.length > 1 ? "Shared task" : assignedMember ? assignedMember.role : "Needs someone to take it"}</p>
           </div>
           <PriorityBadge priority={task.priority} />
         </div>
@@ -725,7 +714,7 @@ function TaskDetailDialog({
           <div className="flex flex-wrap gap-2">
             <Button size="sm" variant={task.complete ? "outline" : "default"} onClick={onComplete}>{task.complete ? "Reopen task" : "Mark complete"}</Button>
             {!task.complete && (
-              <Button size="sm" variant="outline" aria-expanded={isReassigning} onClick={() => { setSelectedOwner(task.assigneeId ?? ""); setIsReassigning((current) => !current); }}>{assignedMember ? "Reassign" : "Assign"}</Button>
+              <Button size="sm" variant="outline" aria-expanded={isReassigning} onClick={() => setIsReassigning((current) => !current)}>{assignedMember ? "Change who" : "Assign"}</Button>
             )}
             {!task.complete && <Button size="sm" variant="outline" onClick={() => setIsEditing(true)}><Pencil size={14} aria-hidden="true" />Edit</Button>}
             <button
@@ -741,20 +730,14 @@ function TaskDetailDialog({
             </button>
           </div>
           {isReassigning && !task.complete && (
-            <div className="mt-3 flex flex-col gap-2 rounded-lg bg-muted/50 p-3 sm:flex-row">
-              <label className="sr-only" htmlFor={`reassign-task-${task.id}`}>Assign to family member</label>
-              <select
-                id={`reassign-task-${task.id}`}
-                value={selectedOwner}
-                onChange={(event) => setSelectedOwner(event.target.value)}
-                className="min-h-9 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              >
-                <option value="">Select a family member</option>
-                {members.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
-              </select>
-              <Button size="sm" disabled={!selectedOwner || selectedOwner === task.assigneeId} onClick={() => { onReassign(selectedOwner); setIsReassigning(false); }}>Save</Button>
-              <Button size="sm" variant="ghost" onClick={() => setIsReassigning(false)}>Cancel</Button>
-            </div>
+            <AssigneePicker
+              className="mt-3 p-3"
+              members={members}
+              current={task.assigneeIds}
+              label={`Who does ${task.title}`}
+              onSave={(ids) => { onReassign(ids); setIsReassigning(false); }}
+              onCancel={() => setIsReassigning(false)}
+            />
           )}
         </section>
 
@@ -836,7 +819,7 @@ function TaskEditForm({ task, onCancel, onSave }: { task: CareTask; onCancel: ()
                 role="radio"
                 aria-checked={recurrence === option.value}
                 onClick={() => setRecurrence(option.value)}
-                className={`rounded-md px-1 py-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:text-sm ${recurrence === option.value ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                className={`rounded-md px-1 py-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:text-sm ${recurrence === option.value ? "bg-card text-foreground shadow-sm ring-1 ring-primary/40" : "text-muted-foreground hover:text-foreground"}`}
               >
                 {option.label}
               </button>
@@ -861,7 +844,7 @@ function TaskEditForm({ task, onCancel, onSave }: { task: CareTask; onCancel: ()
               role="radio"
               aria-checked={priority === option}
               onClick={() => setPriority(option)}
-              className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${priority === option ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+              className={`flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${priority === option ? "bg-card text-foreground shadow-sm ring-1 ring-primary/40" : "text-muted-foreground hover:text-foreground"}`}
             >
               <span aria-hidden="true" className={`size-2 rounded-full ${priorityDots[option]}`} />{option}
             </button>

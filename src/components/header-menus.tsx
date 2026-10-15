@@ -37,7 +37,7 @@ export function NotificationsMenu({
       >
         <Bell size={18} aria-hidden="true" />
         {count > 0 && (
-          <span aria-hidden="true" className="absolute -right-1 -top-1 flex min-w-[18px] items-center justify-center rounded-full bg-alert px-1 text-[10px] font-extrabold leading-[18px] text-white">
+          <span aria-hidden="true" className="absolute -right-1 -top-1 flex min-w-[18px] items-center justify-center rounded-full bg-alert px-1 text-[10px] font-extrabold leading-[18px] text-primary-foreground">
             {count > 9 ? "9+" : count}
           </span>
         )}

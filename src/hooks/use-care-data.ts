@@ -181,7 +181,8 @@ export function useCareData() {
       applyTask(created);
       return toTask(created, membersById);
     }),
-    assignTask: (taskId: string, assigneeId: string | null) => run(async () => applyTask(await careApi.assignTask(taskId, assigneeId))),
+    /** Give the task to these people, lead first; an empty list leaves it unassigned. */
+    assignTask: (taskId: string, assigneeIds: string[]) => run(async () => applyTask(await careApi.assignTask(taskId, assigneeIds))),
     /** Resolves to true when the changes were saved. */
     updateTask: (taskId: string, changes: TaskChanges) => run(async () => { applyTask(await careApi.updateTask(taskId, changes)); return true; }),
     /** Resolves to true once the task is gone. */

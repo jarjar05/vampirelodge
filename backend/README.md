@@ -1,6 +1,6 @@
-# Family Care Coordinator Backend
+# CareCircle Backend
 
-Minimal FastAPI backend foundation for the Family Care Coordinator frontend.
+The FastAPI backend for CareCircle: accounts, families, tasks, family notes, calendar links, the AI features and the Telegram bot.
 
 ## Requirements
 
@@ -48,7 +48,7 @@ python -m app.init_db
 
 Its database files live under `backend/data/postgres/`. The service is bound to localhost only and uses trust authentication for local development. Do not expose this configuration to a network or use it for production. `.env` sets the database role and connection URL; edit those values together if you change the role. SQLite and PostgreSQL hold separate data; switching does not copy anything across.
 
-ChromaDB uses a separate persistent local store at `backend/data/chroma/` by default. Configure `CHROMA_PERSIST_DIR` in `.env` to change it. The SQL database remains the source of truth for users, families, tasks, appointments, and application state; ChromaDB is only for semantic knowledge retrieval. ChromaDB is initialized by FastAPI and must not be accessed by the React app.
+ChromaDB uses a separate persistent local store at `backend/data/chroma/` by default. Configure `CHROMA_PERSIST_DIR` in `.env` to change it. The SQL database remains the source of truth for users, families, tasks, and application state; ChromaDB is only for semantic knowledge retrieval. ChromaDB is initialized by FastAPI and must not be accessed by the React app.
 
 Start the development server from the `backend` directory:
 
@@ -97,7 +97,7 @@ The password is entered with terminal input hidden.
 - `PATCH /api/auth/me/sign-in-details` changes `email` and/or `phone` (`null` removes the phone). Body must include `current_password`; a wrong one returns `403`.
 - `POST /api/auth/change-password` takes `{"current_password":"...","new_password":"..."}` and signs the account out of every other session.
 
-Sign-up is open to anyone who can reach the API. Emails and phone numbers are not verified (no confirmation email or SMS), and there is no rate limiting or forgotten-password flow; add these before exposing this beyond local use. Set `SESSION_COOKIE_SECURE=true` when serving over HTTPS.
+Sign-up is open to anyone who can reach the API. Emails and phone numbers are not verified (no confirmation email or SMS), and sign-in is not rate limited; add these before exposing this beyond local use. Forgotten passwords are covered below. Set `SESSION_COOKIE_SECURE=true` when serving over HTTPS.
 
 ### Forgotten passwords
 
@@ -175,9 +175,11 @@ Restart the server after changing `.env`. `LLM_MODEL` is optional and defaults t
 
 - `POST /api/families/me/tasks/from-document` reads a letter or email and drafts tasks from it. Send either a file as `{"filename":"letter.pdf","content_type":"application/pdf","data_base64":"..."}` or pasted text as `{"text":"..."}`, optionally with `timezone`. It returns `{"summary":"...","tasks":[{"title":"...","detail":"...","location":"...","due_date":"2026-11-14","due_time":"09:00:00","priority":"Normal"}]}`, at most five drafts. Nothing is created or stored: the app puts a draft into the new-task form, and the task exists only once the person submits it. Supported files, up to 5 MB: PDF with a text layer, JPEG/PNG/WebP/GIF pictures (read by the model), `.docx`, `.eml`, and plain text. The app converts photos to JPEG on a white background first, because the model cannot read dark text on a transparent picture.
 
-Both endpoints accept the browser's time zone (`?timezone=` on the suggestion) so times in the prompt read as the person sees them.
+- `POST /api/families/me/ask` answers a family member's question, as a chat assistant would. Body: `{"question":"Who's free on Saturday morning?","history":[{"role":"user","text":"..."},{"role":"assistant","text":"..."}],"timezone":"Asia/Singapore"}`; `history` (the conversation so far, oldest first, up to 20 turns) makes follow-up questions work. It returns `{"answer":"...","task_ids":["..."],"note_titles":["..."]}`: the answer in a few sentences or a short list, the family's tasks it is about, and the titles of the family notes it was given. The prompt holds the family's members (role, availability, and busy times for the next 7 days from linked calendars), every open task, the tasks finished in the last 14 days, and up to five notes matching the question. It only reads: it never creates, assigns, edits or completes anything, and when asked to it says where in the app to do it. Returned task ids are checked against the family's tasks.
 
-All model calls go through `app/services/llm.py`, so changing provider means changing that one file. Text written by users (tasks, member details, knowledge) is passed to the model as data, and a model answer can never do more than name family members or that person's tasks and give short reasons. Each model call is one billed API request.
+These endpoints accept the browser's time zone (`?timezone=` on the suggestion) so times in the prompt read as the person sees them.
+
+All model calls go through `app/services/llm.py`, so changing provider means changing that one file. Text written by users (tasks, member details, knowledge) is passed to the model as data, and a model answer can never do more than name family members or the family's tasks and give short reasons or a written answer. Each model call is one billed API request.
 
 ## Calendar link
 
@@ -224,7 +226,7 @@ All Telegram calls go through `app/services/telegram_api.py`; the bot's behaviou
 
 ## Browser tests
 
-The main flows are also tested end to end in a real browser: signing up and in, creating, completing, editing and deleting a task, the calendar, and customising the Overview. From the project root:
+The main flows are also tested end to end in a real browser: signing up and in, creating, completing, editing and deleting a task, the calendar, customising the Overview, and two people seeing each other's changes live. From the project root:
 
 ```sh
 npm run test:e2e

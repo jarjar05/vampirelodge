@@ -50,6 +50,7 @@ export type ApiTask = {
   location: string | null;
   due_at: string | null;
   assignee_id: string | null;
+  assignee_ids: string[];
   /** Older data may still hold the retired "Urgent" level. */
   priority: CareTask["priority"] | "Urgent";
   status: CareTask["status"];
@@ -87,7 +88,7 @@ function toKnowledgeDocument(document: ApiKnowledgeDocument): KnowledgeDocument 
   };
 }
 
-export type NewTask = { title: string; detail: string; location?: string; dueAt: string; priority: CareTask["priority"]; recurrence?: TaskRecurrence | null };
+export type NewTask = { title: string; detail: string; location?: string; dueAt: string; priority: CareTask["priority"]; recurrence?: TaskRecurrence | null; assigneeIds?: string[] };
 /** Changes to a task's details. A null due time or location clears it. */
 export type TaskChanges = { title: string; detail: string; location: string | null; dueAt: string | null; priority: CareTask["priority"]; recurrence: TaskRecurrence | null };
 export type MemberChanges = { relationshipLabel?: string | null; availability?: Availability; availabilityNote?: string | null; role?: "ADMIN" | "MEMBER" };
@@ -128,11 +129,12 @@ export const careApi = {
   listTasks: () => api<ApiTask[]>("/families/me/tasks"),
   createTask: (task: NewTask) => api<ApiTask>("/families/me/tasks", {
     method: "POST",
-    body: { title: task.title, detail: task.detail, location: task.location || null, due_at: task.dueAt, priority: task.priority, recurrence: task.recurrence ?? null },
+    body: { title: task.title, detail: task.detail, location: task.location || null, due_at: task.dueAt, priority: task.priority, recurrence: task.recurrence ?? null, assignee_ids: task.assigneeIds ?? [] },
   }),
-  assignTask: (taskId: string, assigneeId: string | null) => api<ApiTask>(`/families/me/tasks/${taskId}/assign`, {
+  /** Give the task to these people, lead first; an empty list leaves it unassigned. */
+  assignTask: (taskId: string, assigneeIds: string[]) => api<ApiTask>(`/families/me/tasks/${taskId}/assign`, {
     method: "POST",
-    body: { assignee_id: assigneeId },
+    body: { assignee_ids: assigneeIds },
   }),
   taskAction: (taskId: string, action: "complete" | "reopen") =>
     api<ApiTask>(`/families/me/tasks/${taskId}/${action}`, { method: "POST" }),
@@ -146,8 +148,8 @@ export const careApi = {
     (await api<{ task_ids: string[] }>(`/families/me/tasks/conflicts?timezone=${encodeURIComponent(localTimeZone())}`)).task_ids,
   /** Who should take the task by plain rules: free then, best placed by role, fewest open tasks. No AI call is made. */
   quickSuggestion: async (taskId: string): Promise<QuickSuggestion> => {
-    const suggestion = await api<{ member_id: string | null; reason: string; busy_member_ids: string[] }>(`/families/me/tasks/${taskId}/quick-suggestion?timezone=${encodeURIComponent(localTimeZone())}`);
-    return { memberId: suggestion.member_id, reason: suggestion.reason, busyMemberIds: suggestion.busy_member_ids };
+    const suggestion = await api<{ member_id: string | null; member_ids: string[]; reason: string; busy_member_ids: string[] }>(`/families/me/tasks/${taskId}/quick-suggestion?timezone=${encodeURIComponent(localTimeZone())}`);
+    return { memberId: suggestion.member_id, memberIds: suggestion.member_ids, reason: suggestion.reason, busyMemberIds: suggestion.busy_member_ids };
   },
   stopRepeating: (taskId: string) => api<ApiTask>(`/families/me/tasks/${taskId}/stop-repeating`, { method: "POST" }),
   listActivity: () => api<ApiFamilyActivity[]>("/families/me/activity?limit=20"),
@@ -169,8 +171,8 @@ export const careApi = {
     (await api<{ busy_member_ids: string[] }>(`/families/me/tasks/${taskId}/availability?timezone=${encodeURIComponent(localTimeZone())}`)).busy_member_ids,
   /** Asks the language model who should take the task. Rejects when AI is not set up or the call fails. */
   suggestAssignee: async (taskId: string): Promise<AssignmentSuggestion> => {
-    const suggestion = await api<{ member_id: string; reason: string; note_titles: string[] }>(`/families/me/tasks/${taskId}/suggestion?timezone=${encodeURIComponent(localTimeZone())}`, { method: "POST" });
-    return { memberId: suggestion.member_id, reason: suggestion.reason, noteTitles: suggestion.note_titles };
+    const suggestion = await api<{ member_id: string; member_ids: string[]; reason: string; note_titles: string[] }>(`/families/me/tasks/${taskId}/suggestion?timezone=${encodeURIComponent(localTimeZone())}`, { method: "POST" });
+    return { memberId: suggestion.member_id, memberIds: suggestion.member_ids, reason: suggestion.reason, noteTitles: suggestion.note_titles };
   },
   /** Summarises my open tasks and suggests an order. The server reuses its last answer until my tasks change. */
   /** Ask the family assistant a question. `history` is the conversation so far, oldest first. */
@@ -275,6 +277,8 @@ function toActivity(activity: ApiActivity): TaskActivity {
 
 export function toTask(task: ApiTask, membersById: ReadonlyMap<string, FamilyMember>, now = new Date()): CareTask {
   const assignee = task.assignee_id ? membersById.get(task.assignee_id) : undefined;
+  const assigneeIds = task.assignee_ids ?? (task.assignee_id ? [task.assignee_id] : []);
+  const names = assigneeIds.map((id) => membersById.get(id)?.firstName).filter((name): name is string => Boolean(name));
   const complete = task.status === "Completed";
   const overdue = !complete && task.due_at !== null && new Date(task.due_at).getTime() < now.getTime();
   return {
@@ -288,10 +292,11 @@ export function toTask(task: ApiTask, membersById: ReadonlyMap<string, FamilyMem
     completedAt: task.completed_at ?? undefined,
     recurrence: task.recurrence ?? undefined,
     assigneeId: task.assignee_id,
-    owner: assignee?.firstName ?? "Unassigned",
+    assigneeIds,
+    owner: names.length === 0 ? "Unassigned" : names.length <= 2 ? names.join(" & ") : `${names[0]} & ${names.length - 1} others`,
     initials: assignee?.initials.slice(0, 1) ?? "?",
     complete,
-    attention: complete ? undefined : task.assignee_id === null ? "Unassigned" : overdue ? "Overdue" : undefined,
+    attention: complete ? undefined : assigneeIds.length === 0 ? "Unassigned" : overdue ? "Overdue" : undefined,
     priority: task.priority === "Urgent" ? "High" : task.priority,
     status: task.status,
     activity: task.activity.map(toActivity),
