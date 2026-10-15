@@ -54,6 +54,9 @@ slipping.
 - **It never dead-ends.** With no AI key, or the AI service down, assignee suggestions fall back to plain rules and
   the Telegram bot asks for the details one question at a time.
 - **Calendars stay private.** Only *when* someone is busy is read from a linked calendar, never what the event is.
+- **Its cost has a ceiling.** Set `AI_MONTHLY_BUDGET_USD` and the model's prices, and the app stops calling the AI
+  for the rest of the month once the limit is reached, falling back to the plain versions. `npm run ai:usage` shows the
+  month so far.
 
 ## Screenshots
 
@@ -121,6 +124,10 @@ npm run demo
 
 Dates move forward to match the day you restore, so a task that was due "tomorrow" when you saved is due tomorrow
 again on demo day.
+
+## Putting it online
+
+The screens go on Vercel and the backend on Railway; see [docs/deploying.md](docs/deploying.md).
 
 ## Tests
 

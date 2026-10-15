@@ -1,5 +1,6 @@
 """Application data models."""
 
+from app.models.ai_usage import AIUsageMonth
 from app.models.family import Family
 from app.models.family_membership import FamilyMembership
 from app.models.knowledge_document import KnowledgeDocument
@@ -9,4 +10,4 @@ from app.models.telegram_draft import TelegramDraft
 from app.models.user import User
 from app.models.user_session import UserSession
 
-__all__ = ["Family", "FamilyMembership", "KnowledgeDocument", "ScheduleEntry", "Task", "TaskActivity", "TaskAssignee", "TelegramDraft", "User", "UserSession"]
+__all__ = ["AIUsageMonth", "Family", "FamilyMembership", "KnowledgeDocument", "ScheduleEntry", "Task", "TaskActivity", "TaskAssignee", "TelegramDraft", "User", "UserSession"]

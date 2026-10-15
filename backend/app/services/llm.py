@@ -8,6 +8,7 @@ from typing import Any
 import openai
 
 from app.config import settings
+from app.services import ai_budget
 
 REQUEST_TIMEOUT_SECONDS = 60.0
 # A ceiling on the answer (including any reasoning the model does), not a target.
@@ -63,6 +64,9 @@ def generate_json(
     """
     if not is_configured():
         raise LLMUnavailable("AI suggestions are not set up yet. Add OPENAI_API_KEY to backend/.env.")
+    stopped = ai_budget.refusal()
+    if stopped:
+        raise LLMUnavailable(stopped)
 
     try:
         completion = _get_client().chat.completions.create(
@@ -90,6 +94,11 @@ def generate_json(
         raise LLMUnavailable("The AI service returned an error. Try again in a moment.") from error
     except openai.APIConnectionError as error:
         raise LLMUnavailable("Could not reach the AI service. Check the internet connection.") from error
+
+    # Counted as soon as it is paid for, even if the answer turns out to be unusable.
+    spent = getattr(completion, "usage", None)
+    if spent is not None:
+        ai_budget.record(spent.prompt_tokens or 0, spent.completion_tokens or 0)
 
     if not completion.choices:
         raise LLMUnavailable("The AI returned an empty answer. Try again.")
